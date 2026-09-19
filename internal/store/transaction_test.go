@@ -1,0 +1,187 @@
+package store
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestRecoverRollsForwardAnInterruptedTransaction(t *testing.T) {
+	root := t.TempDir()
+	firstPath := "tasks/todo/001-first.md"
+	secondPath := "WEFT.md"
+	firstOld, firstNew := []byte("old task\n"), []byte("new task\n")
+	secondOld, secondNew := []byte("old board\n"), []byte("new board\n")
+	if err := os.MkdirAll(filepath.Dir(filepath.Join(root, firstPath)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, firstPath), firstNew, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, secondPath), secondOld, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	staleTemp := filepath.Join(root, ".weft-write-stale")
+	if err := os.WriteFile(staleTemp, []byte("partial temp"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	journal := filepath.Join(root, transactionDirectory)
+	images := filepath.Join(journal, "images")
+	if err := os.MkdirAll(images, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	entries := []transactionChange{
+		{Path: firstPath, BeforeExists: true, BeforeHash: hash(firstOld), AfterExists: true, AfterHash: hash(firstNew), BeforeFile: "before-000000", AfterFile: "after-000000"},
+		{Path: secondPath, BeforeExists: true, BeforeHash: hash(secondOld), AfterExists: true, AfterHash: hash(secondNew), BeforeFile: "before-000001", AfterFile: "after-000001"},
+	}
+	for i, pair := range [][2][]byte{{firstOld, firstNew}, {secondOld, secondNew}} {
+		if err := os.WriteFile(filepath.Join(images, entries[i].BeforeFile), pair[0], 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(images, entries[i].AfterFile), pair[1], 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manifest, err := json.Marshal(transactionManifest{Version: 1, Changes: entries})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(journal, "manifest.json"), manifest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := Recover(root); err != nil {
+		t.Fatal(err)
+	}
+	for path, want := range map[string][]byte{firstPath: firstNew, secondPath: secondNew} {
+		got, err := os.ReadFile(filepath.Join(root, path))
+		if err != nil || string(got) != string(want) {
+			t.Fatalf("recovered %s = %q, %v; want %q", path, got, err, want)
+		}
+	}
+	if _, err := os.Stat(journal); !os.IsNotExist(err) {
+		t.Fatalf("journal should be removed after recovery, stat error: %v", err)
+	}
+	if _, err := os.Stat(staleTemp); !os.IsNotExist(err) {
+		t.Fatalf("stale atomic-write temporary file should be removed, stat error: %v", err)
+	}
+}
+
+func TestRecoverDoesNotOverwriteAnExternalConflict(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "WEFT.md")
+	if err := os.WriteFile(target, []byte("external edit"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	journal := filepath.Join(root, transactionDirectory)
+	images := filepath.Join(journal, "images")
+	if err := os.MkdirAll(images, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	before, after := []byte("old"), []byte("new")
+	if err := os.WriteFile(filepath.Join(images, "before-000000"), before, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(images, "after-000000"), after, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ := json.Marshal(transactionManifest{Version: 1, Changes: []transactionChange{{
+		Path: "WEFT.md", BeforeExists: true, BeforeHash: hash(before), AfterExists: true,
+		AfterHash: hash(after), BeforeFile: "before-000000", AfterFile: "after-000000",
+	}}})
+	if err := os.WriteFile(filepath.Join(journal, "manifest.json"), encoded, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := Recover(root); err == nil {
+		t.Fatal("expected a recovery conflict")
+	}
+	got, err := os.ReadFile(target)
+	if err != nil || string(got) != "external edit" {
+		t.Fatalf("external edit was changed: %q, %v", got, err)
+	}
+}
+
+func TestCommitPreparationFailureLeavesBoardFilesUntouched(t *testing.T) {
+	root := t.TempDir()
+	stateDir := filepath.Join(root, "tasks", "todo")
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	taskPath := filepath.Join(stateDir, "001-one.md")
+	if err := os.WriteFile(taskPath, []byte("before task"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// WEFT.md being a directory makes staging fail after the first change was
+	// staged. Since target replacement starts only after the journal is ready,
+	// the task file must still contain its original bytes.
+	if err := os.Mkdir(filepath.Join(root, "WEFT.md"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := Commit(root, []Change{
+		{Path: "tasks/todo/001-one.md", Data: []byte("after task")},
+		{Path: "WEFT.md", Data: []byte("projection")},
+	})
+	if err == nil {
+		t.Fatal("expected staging to fail when WEFT.md is a directory")
+	}
+	got, readErr := os.ReadFile(taskPath)
+	if readErr != nil || string(got) != "before task" {
+		t.Fatalf("staged failure changed task file: %q, %v", got, readErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(root, transactionDirectory)); !os.IsNotExist(statErr) {
+		t.Fatalf("failed staging should remove its journal, stat error: %v", statErr)
+	}
+}
+
+func TestSafeRelativeRejectsPathsOutsideBoard(t *testing.T) {
+	for _, candidate := range []string{"../outside", "tasks/../WEFT.md", "README.md", "tasks/todo/subdir/001-a.md", `tasks\\todo\\001-a.md`} {
+		if _, err := safeRelative(candidate); err == nil {
+			t.Errorf("safeRelative(%q) unexpectedly succeeded", candidate)
+		}
+	}
+	for _, candidate := range []string{"WEFT.md", "tasks/backlog/001-a.md", `tasks\todo\001-a.md`} {
+		if _, err := safeRelative(candidate); err != nil {
+			t.Errorf("safeRelative(%q): %v", candidate, err)
+		}
+	}
+}
+
+func TestBoardLockSerializesProcesses(t *testing.T) {
+	root := Root{Path: t.TempDir()}
+	first, err := Acquire(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondAcquired := make(chan *Lock, 1)
+	secondError := make(chan error, 1)
+	go func() {
+		lock, err := Acquire(root)
+		if err != nil {
+			secondError <- err
+			return
+		}
+		secondAcquired <- lock
+	}()
+	select {
+	case lock := <-secondAcquired:
+		_ = lock.Close()
+		t.Fatal("second process acquired the board lock while the first held it")
+	case err := <-secondError:
+		t.Fatal(err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case lock := <-secondAcquired:
+		if err := lock.Close(); err != nil {
+			t.Fatal(err)
+		}
+	case err := <-secondError:
+		t.Fatal(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("second process did not acquire the released lock")
+	}
+}
