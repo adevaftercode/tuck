@@ -23,7 +23,7 @@ func requireSuccess(t *testing.T, root string, args ...string) string {
 	t.Helper()
 	code, stdout, stderr := runCLI(t, root, args...)
 	if code != 0 {
-		t.Fatalf("weft %s exited %d\nstdout:\n%s\nstderr:\n%s", strings.Join(args, " "), code, stdout, stderr)
+		t.Fatalf("tuck %s exited %d\nstdout:\n%s\nstderr:\n%s", strings.Join(args, " "), code, stdout, stderr)
 	}
 	return stdout
 }
@@ -114,7 +114,7 @@ func TestSyncWarnsAndLeavesProjectionUntouchedForMalformedTask(t *testing.T) {
 	root := t.TempDir()
 	requireSuccess(t, root, "init")
 	requireSuccess(t, root, "add", "A valid task")
-	projectionPath := filepath.Join(root, "WEFT.md")
+	projectionPath := filepath.Join(root, "TUCK.md")
 	before, err := os.ReadFile(projectionPath)
 	if err != nil {
 		t.Fatal(err)
@@ -145,7 +145,7 @@ func TestSyncWarnsAndLeavesProjectionUntouchedForMalformedTask(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(before, after) {
-		t.Fatalf("sync changed WEFT.md despite malformed task")
+		t.Fatalf("sync changed TUCK.md despite malformed task")
 	}
 	code, stdout, _ := runCLI(t, root, "check")
 	if code == 0 || !strings.Contains(stdout, "task must begin with YAML front matter") {
@@ -170,9 +170,9 @@ func TestDefaultListUsesProjectionLimits(t *testing.T) {
 }
 
 func TestConcurrentWritersKeepEveryTask(t *testing.T) {
-	if root := os.Getenv("WEFT_CONCURRENT_TEST_ROOT"); root != "" {
+	if root := os.Getenv("TUCK_CONCURRENT_TEST_ROOT"); root != "" {
 		var stdout, stderr bytes.Buffer
-		code := Run([]string{"add", "Concurrent task", "writer", os.Getenv("WEFT_CONCURRENT_TEST_WRITER"), "--root", root}, &stdout, &stderr)
+		code := Run([]string{"add", "Concurrent task", "writer", os.Getenv("TUCK_CONCURRENT_TEST_WRITER"), "--root", root}, &stdout, &stderr)
 		if code != 0 {
 			t.Fatalf("child writer exited %d\nstdout:\n%s\nstderr:\n%s", code, stdout.String(), stderr.String())
 		}
@@ -186,8 +186,8 @@ func TestConcurrentWritersKeepEveryTask(t *testing.T) {
 	stderr := make([]bytes.Buffer, writers)
 	for index := 0; index < writers; index++ {
 		command := exec.Command(os.Args[0], "-test.run=^TestConcurrentWritersKeepEveryTask$")
-		command.Env = append(os.Environ(), "WEFT_CONCURRENT_TEST_ROOT="+root,
-			"WEFT_CONCURRENT_TEST_WRITER="+strconv.Itoa(index))
+		command.Env = append(os.Environ(), "TUCK_CONCURRENT_TEST_ROOT="+root,
+			"TUCK_CONCURRENT_TEST_WRITER="+strconv.Itoa(index))
 		command.Stdout = &stdout[index]
 		command.Stderr = &stderr[index]
 		if err := command.Start(); err != nil {
@@ -215,7 +215,7 @@ func TestConcurrentWritersKeepEveryTask(t *testing.T) {
 func TestCheckReportsPendingTransactionWithoutRecoveringIt(t *testing.T) {
 	root := t.TempDir()
 	requireSuccess(t, root, "init")
-	journal := filepath.Join(root, ".weft-txn")
+	journal := filepath.Join(root, ".tuck-txn")
 	if err := os.Mkdir(journal, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestCheckReportsPendingTransactionWithoutRecoveringIt(t *testing.T) {
 func TestCheckReportsStaleProjectionWithoutChangingIt(t *testing.T) {
 	root := t.TempDir()
 	requireSuccess(t, root, "init")
-	projectionPath := filepath.Join(root, "WEFT.md")
+	projectionPath := filepath.Join(root, "TUCK.md")
 	if err := os.WriteFile(projectionPath, []byte("manual edit\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestCheckReportsStaleProjectionWithoutChangingIt(t *testing.T) {
 	}
 	content, err := os.ReadFile(projectionPath)
 	if err != nil || string(content) != "manual edit\n" {
-		t.Fatalf("check changed WEFT.md: %q, %v", content, err)
+		t.Fatalf("check changed TUCK.md: %q, %v", content, err)
 	}
 }
 

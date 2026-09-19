@@ -1,18 +1,18 @@
 # Initialize a board and inspect its public files.
-exec weft$exe init --json
+exec tuck$exe init --json
 json
 stdout '"initialized": true'
 stdout '"projection_updated": true'
 ! stderr .+
-exists WEFT.md tasks tasks/backlog tasks/todo tasks/doing tasks/done
-grep '^# Weft$' WEFT.md
+exists TUCK.md tasks tasks/backlog tasks/todo tasks/doing tasks/done
+grep '^# Tuck$' TUCK.md
 
-exec weft$exe check --json
+exec tuck$exe check --json
 json
 stdout '"ok": true'
 stdout '"task_count": 0'
 ! stderr .+
 
-exec weft$exe check
-stdout 'Weft board OK'
+exec tuck$exe check
+stdout 'Tuck board OK'
 stdout '0 tasks'

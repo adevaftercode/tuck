@@ -1,4 +1,4 @@
-module weft
+module tuck
 
 go 1.26.0
 

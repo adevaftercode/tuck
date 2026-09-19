@@ -1,18 +1,18 @@
 # Search titles, body, and metadata with filters and limits; inspect board views.
-exec weft$exe init
-exec weft$exe add 'Alpha guide' --state todo
-exec weft$exe add 'Beta guide' --state done
-exec weft$exe add 'Gamma guide' --state doing
-exec weft$exe meta set 002 labels '["blue", "green"]'
-exec weft$exe meta set 002 category '"images"'
+exec tuck$exe init
+exec tuck$exe add 'Alpha guide' --state todo
+exec tuck$exe add 'Beta guide' --state done
+exec tuck$exe add 'Gamma guide' --state doing
+exec tuck$exe meta set 002 labels '["blue", "green"]'
+exec tuck$exe meta set 002 category '"images"'
 
-exec weft$exe list --json
+exec tuck$exe list --json
 json
 stdout '"state": "doing"'
 stdout '"title": "Alpha guide"'
 stdout '"state": "done"'
 
-exec weft$exe list
+exec tuck$exe list
 stdout '^DOING$'
 stdout '^TODO$'
 stdout '^BACKLOG$'
@@ -22,45 +22,45 @@ stdout 'Alpha guide'
 stdout 'Fixture task'
 stdout 'Beta guide'
 
-exec weft$exe list todo
+exec tuck$exe list todo
 stdout '^TODO$'
 stdout '002 Alpha guide'
 ! stdout 'Beta guide'
 
-exec weft$exe list --limit=1
+exec tuck$exe list --limit=1
 stdout '004 doing   Gamma guide'
 ! stdout 'Alpha guide'
 
-exec weft$exe find GUIDE --json
+exec tuck$exe find GUIDE --json
 json
 stdout '(?s)"title": "Gamma guide".*"title": "Alpha guide".*"title": "Beta guide"'
-exec weft$exe find guide --limit=1 --json
+exec tuck$exe find guide --limit=1 --json
 json
 stdout '"title": "Gamma guide"'
 ! stdout '"title": "Alpha guide"'
-exec weft$exe find alpha guide --state=todo --limit 1
+exec tuck$exe find alpha guide --state=todo --limit 1
 stdout '002 todo    Alpha guide'
-exec weft$exe find fixture --state=backlog --json
+exec tuck$exe find fixture --state=backlog --json
 json
 stdout '"number": "001"'
-exec weft$exe find guide --recent --state=done --json
+exec tuck$exe find guide --recent --state=done --json
 json
 stdout '"title": "Beta guide"'
 ! stdout '"title": "Alpha guide"'
 ! stdout '"title": "Gamma guide"'
 
-exec weft$exe find catalog --json
+exec tuck$exe find catalog --json
 json
 stdout '"title": "Fixture task"'
-exec weft$exe find IMAGES --meta=category='"images"' --json
+exec tuck$exe find IMAGES --meta=category='"images"' --json
 json
 stdout '"number": "002"'
-exec weft$exe find guide --meta 'labels=["blue","green"]' --json
+exec tuck$exe find guide --meta 'labels=["blue","green"]' --json
 json
 stdout '"number": "002"'
 ! stdout '"number": "003"'
 
-exec weft$exe find nonexistent --json
+exec tuck$exe find nonexistent --json
 json
 stdout '"tasks": '
 ! stdout '"title":'

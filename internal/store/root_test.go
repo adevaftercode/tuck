@@ -26,8 +26,8 @@ func TestResolveUsesPrimaryGitWorktree(t *testing.T) {
 		}
 	}
 	runGit(main, "init")
-	runGit(main, "config", "user.name", "Weft Test")
-	runGit(main, "config", "user.email", "weft@example.invalid")
+	runGit(main, "config", "user.name", "Tuck Test")
+	runGit(main, "config", "user.email", "tuck@example.invalid")
 	if err := os.WriteFile(filepath.Join(main, "README.md"), []byte("test\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -1,26 +1,26 @@
 # All documented --root placements select the board directory, not the cwd.
 mkdir 'board one' 'board two' 'board three' 'board four'
 
-exec weft$exe --root 'board one' init --json
+exec tuck$exe --root 'board one' init --json
 json
 stdout '"initialized": true'
-exec weft$exe add 'First selected board' --root 'board one'
-exists 'board one/WEFT.md' 'board one/tasks/backlog/001-first-selected-board.md'
+exec tuck$exe add 'First selected board' --root 'board one'
+exists 'board one/TUCK.md' 'board one/tasks/backlog/001-first-selected-board.md'
 
-exec weft$exe init --root 'board two' --json
+exec tuck$exe init --root 'board two' --json
 json
 stdout '"projection_updated": true'
-exec weft$exe add 'Second selected board' --root='board two'
+exec tuck$exe add 'Second selected board' --root='board two'
 exists 'board two/tasks/backlog/001-second-selected-board.md'
 
-exec weft$exe --root=board-three init --json
+exec tuck$exe --root=board-three init --json
 json
-exec weft$exe add 'Third selected board' --root=board-three
+exec tuck$exe add 'Third selected board' --root=board-three
 exists board-three/tasks/backlog/001-third-selected-board.md
 
-exec weft$exe init --root=board-four --json
+exec tuck$exe init --root=board-four --json
 json
-exec weft$exe add 'Fourth selected board' --root=board-four
+exec tuck$exe add 'Fourth selected board' --root=board-four
 exists board-four/tasks/backlog/001-fourth-selected-board.md
 
-! exists tasks WEFT.md
+! exists tasks TUCK.md

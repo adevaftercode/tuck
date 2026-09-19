@@ -1,38 +1,38 @@
 # Top-level help, version, errors, and command help are available without a board.
-exec weft$exe
-stdout 'weft — deterministic product-board operations'
+exec tuck$exe
+stdout 'tuck — deterministic product-board operations'
 ! stderr .+
 
-exec weft$exe -h
+exec tuck$exe -h
 stdout 'Usage:'
-exec weft$exe --help
+exec tuck$exe --help
 stdout 'Maintain:'
-exec weft$exe help
-stdout 'Use "weft <command> --help"'
+exec tuck$exe help
+stdout 'Use "tuck <command> --help"'
 
-exec weft$exe version
-stdout 'weft dev'
-exec weft$exe --version
-stdout 'weft dev'
+exec tuck$exe version
+stdout 'tuck dev'
+exec tuck$exe --version
+stdout 'tuck dev'
 
-! exec weft$exe unknown-command
-stderr 'weft: unknown command "unknown-command"'
+! exec tuck$exe unknown-command
+stderr 'tuck: unknown command "unknown-command"'
 ! stdout .+
 
-! exec weft$exe --root
-stderr 'weft: --root requires a path and command'
-! exec weft$exe --root=somewhere
-stderr 'weft: --root requires a command'
-! exec weft$exe init --root
-stderr 'weft init: --root requires a path'
-! exec weft$exe init --root=
-stderr 'weft init: --root requires a path'
+! exec tuck$exe --root
+stderr 'tuck: --root requires a path and command'
+! exec tuck$exe --root=somewhere
+stderr 'tuck: --root requires a command'
+! exec tuck$exe init --root
+stderr 'tuck init: --root requires a path'
+! exec tuck$exe init --root=
+stderr 'tuck init: --root requires a path'
 
-exec weft$exe list --help
+exec tuck$exe list --help
 stdout 'List tasks in board order'
-exec weft$exe add -h
+exec tuck$exe add -h
 stdout 'Create a task with a stable number and ID'
-exec weft$exe find --help
+exec tuck$exe find --help
 stdout 'Find task candidates'
-exec weft$exe meta --help
+exec tuck$exe meta --help
 stdout 'Read or change flat user-defined task metadata'

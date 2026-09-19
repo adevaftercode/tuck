@@ -1,36 +1,36 @@
 # Reordering supports first, before, and after, and rejects invalid anchors.
-exec weft$exe init
-exec weft$exe add 'Alpha' --state todo
-exec weft$exe add 'Bravo' --state todo
-exec weft$exe add 'Charlie' --state todo
-exec weft$exe add 'Doing anchor' --state doing
+exec tuck$exe init
+exec tuck$exe add 'Alpha' --state todo
+exec tuck$exe add 'Bravo' --state todo
+exec tuck$exe add 'Charlie' --state todo
+exec tuck$exe add 'Doing anchor' --state doing
 
-exec weft$exe reorder 003 --first --json
+exec tuck$exe reorder 003 --first --json
 json
 stdout '"order": 1'
-exec weft$exe list todo --json
+exec tuck$exe list todo --json
 stdout '(?s)"title": "Charlie".*"title": "Alpha".*"title": "Bravo"'
 
-exec weft$exe reorder 002 --before=003
-exec weft$exe list todo --json
+exec tuck$exe reorder 002 --before=003
+exec tuck$exe list todo --json
 json
 stdout '(?s)"title": "Bravo".*"title": "Charlie".*"title": "Alpha"'
 
-exec weft$exe reorder 001 --after=002 --json
+exec tuck$exe reorder 001 --after=002 --json
 json
-exec weft$exe list todo --json
+exec tuck$exe list todo --json
 json
 stdout '(?s)"title": "Bravo".*"title": "Alpha".*"title": "Charlie"'
 
-! exec weft$exe reorder 001
+! exec tuck$exe reorder 001
 stderr 'choose exactly one of --first, --before, or --after'
-! exec weft$exe reorder 001 --first --after 002
+! exec tuck$exe reorder 001 --first --after 002
 stderr 'choose exactly one of --first, --before, or --after'
-! exec weft$exe reorder 001 --before 001
+! exec tuck$exe reorder 001 --before 001
 stderr 'reorder anchor must be a different task in the same state'
-! exec weft$exe reorder 001 --before 004
+! exec tuck$exe reorder 001 --before 004
 stderr 'reorder anchor must be a different task in the same state'
-! exec weft$exe reorder 001 --before 999
+! exec tuck$exe reorder 001 --before 999
 stderr 'task 999 not found'
-! exec weft$exe reorder --first
+! exec tuck$exe reorder --first
 stderr 'reorder requires one task number or ID'

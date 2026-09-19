@@ -11,7 +11,7 @@ import (
 func TestRecoverRollsForwardAnInterruptedTransaction(t *testing.T) {
 	root := t.TempDir()
 	firstPath := "tasks/todo/001-first.md"
-	secondPath := "WEFT.md"
+	secondPath := "TUCK.md"
 	firstOld, firstNew := []byte("old task\n"), []byte("new task\n")
 	secondOld, secondNew := []byte("old board\n"), []byte("new board\n")
 	if err := os.MkdirAll(filepath.Dir(filepath.Join(root, firstPath)), 0o755); err != nil {
@@ -23,7 +23,7 @@ func TestRecoverRollsForwardAnInterruptedTransaction(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, secondPath), secondOld, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	staleTemp := filepath.Join(root, ".weft-write-stale")
+	staleTemp := filepath.Join(root, ".tuck-write-stale")
 	if err := os.WriteFile(staleTemp, []byte("partial temp"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestRecoverRollsForwardAnInterruptedTransaction(t *testing.T) {
 
 func TestRecoverDoesNotOverwriteAnExternalConflict(t *testing.T) {
 	root := t.TempDir()
-	target := filepath.Join(root, "WEFT.md")
+	target := filepath.Join(root, "TUCK.md")
 	if err := os.WriteFile(target, []byte("external edit"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestRecoverDoesNotOverwriteAnExternalConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	encoded, _ := json.Marshal(transactionManifest{Version: 1, Changes: []transactionChange{{
-		Path: "WEFT.md", BeforeExists: true, BeforeHash: hash(before), AfterExists: true,
+		Path: "TUCK.md", BeforeExists: true, BeforeHash: hash(before), AfterExists: true,
 		AfterHash: hash(after), BeforeFile: "before-000000", AfterFile: "after-000000",
 	}}})
 	if err := os.WriteFile(filepath.Join(journal, "manifest.json"), encoded, 0o600); err != nil {
@@ -112,18 +112,18 @@ func TestCommitPreparationFailureLeavesBoardFilesUntouched(t *testing.T) {
 	if err := os.WriteFile(taskPath, []byte("before task"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// WEFT.md being a directory makes staging fail after the first change was
+	// TUCK.md being a directory makes staging fail after the first change was
 	// staged. Since target replacement starts only after the journal is ready,
 	// the task file must still contain its original bytes.
-	if err := os.Mkdir(filepath.Join(root, "WEFT.md"), 0o755); err != nil {
+	if err := os.Mkdir(filepath.Join(root, "TUCK.md"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	err := Commit(root, []Change{
 		{Path: "tasks/todo/001-one.md", Data: []byte("after task")},
-		{Path: "WEFT.md", Data: []byte("projection")},
+		{Path: "TUCK.md", Data: []byte("projection")},
 	})
 	if err == nil {
-		t.Fatal("expected staging to fail when WEFT.md is a directory")
+		t.Fatal("expected staging to fail when TUCK.md is a directory")
 	}
 	got, readErr := os.ReadFile(taskPath)
 	if readErr != nil || string(got) != "before task" {
@@ -135,12 +135,12 @@ func TestCommitPreparationFailureLeavesBoardFilesUntouched(t *testing.T) {
 }
 
 func TestSafeRelativeRejectsPathsOutsideBoard(t *testing.T) {
-	for _, candidate := range []string{"../outside", "tasks/../WEFT.md", "README.md", "tasks/todo/subdir/001-a.md", `tasks\\todo\\001-a.md`} {
+	for _, candidate := range []string{"../outside", "tasks/../TUCK.md", "README.md", "tasks/todo/subdir/001-a.md", `tasks\\todo\\001-a.md`} {
 		if _, err := safeRelative(candidate); err == nil {
 			t.Errorf("safeRelative(%q) unexpectedly succeeded", candidate)
 		}
 	}
-	for _, candidate := range []string{"WEFT.md", "tasks/backlog/001-a.md", `tasks\todo\001-a.md`} {
+	for _, candidate := range []string{"TUCK.md", "tasks/backlog/001-a.md", `tasks\todo\001-a.md`} {
 		if _, err := safeRelative(candidate); err != nil {
 			t.Errorf("safeRelative(%q): %v", candidate, err)
 		}

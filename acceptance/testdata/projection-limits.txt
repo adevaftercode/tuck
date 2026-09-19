@@ -1,45 +1,45 @@
 # The compact list and generated projection apply their documented top-ten limits.
-exec weft$exe init
-exec weft$exe add 'Doing item' --state doing
+exec tuck$exe init
+exec tuck$exe add 'Doing item' --state doing
 
 # More than ten Todo items: the compact board shows ten, while state listing shows all.
-exec weft$exe add 'Todo 01' --state todo
-exec weft$exe add 'Todo 02' --state todo
-exec weft$exe add 'Todo 03' --state todo
-exec weft$exe add 'Todo 04' --state todo
-exec weft$exe add 'Todo 05' --state todo
-exec weft$exe add 'Todo 06' --state todo
-exec weft$exe add 'Todo 07' --state todo
-exec weft$exe add 'Todo 08' --state todo
-exec weft$exe add 'Todo 09' --state todo
-exec weft$exe add 'Todo 10' --state todo
-exec weft$exe add 'Todo 11' --state todo
+exec tuck$exe add 'Todo 01' --state todo
+exec tuck$exe add 'Todo 02' --state todo
+exec tuck$exe add 'Todo 03' --state todo
+exec tuck$exe add 'Todo 04' --state todo
+exec tuck$exe add 'Todo 05' --state todo
+exec tuck$exe add 'Todo 06' --state todo
+exec tuck$exe add 'Todo 07' --state todo
+exec tuck$exe add 'Todo 08' --state todo
+exec tuck$exe add 'Todo 09' --state todo
+exec tuck$exe add 'Todo 10' --state todo
+exec tuck$exe add 'Todo 11' --state todo
 
-exec weft$exe add 'Backlog 01'
-exec weft$exe add 'Backlog 02'
-exec weft$exe add 'Backlog 03'
-exec weft$exe add 'Backlog 04'
-exec weft$exe add 'Backlog 05'
-exec weft$exe add 'Backlog 06'
-exec weft$exe add 'Backlog 07'
-exec weft$exe add 'Backlog 08'
-exec weft$exe add 'Backlog 09'
-exec weft$exe add 'Backlog 10'
-exec weft$exe add 'Backlog 11'
+exec tuck$exe add 'Backlog 01'
+exec tuck$exe add 'Backlog 02'
+exec tuck$exe add 'Backlog 03'
+exec tuck$exe add 'Backlog 04'
+exec tuck$exe add 'Backlog 05'
+exec tuck$exe add 'Backlog 06'
+exec tuck$exe add 'Backlog 07'
+exec tuck$exe add 'Backlog 08'
+exec tuck$exe add 'Backlog 09'
+exec tuck$exe add 'Backlog 10'
+exec tuck$exe add 'Backlog 11'
 
-exec weft$exe add 'Done 01' --state done
-exec weft$exe add 'Done 02' --state done
-exec weft$exe add 'Done 03' --state done
-exec weft$exe add 'Done 04' --state done
-exec weft$exe add 'Done 05' --state done
-exec weft$exe add 'Done 06' --state done
-exec weft$exe add 'Done 07' --state done
-exec weft$exe add 'Done 08' --state done
-exec weft$exe add 'Done 09' --state done
-exec weft$exe add 'Done 10' --state done
-exec weft$exe add 'Done 11' --state done
+exec tuck$exe add 'Done 01' --state done
+exec tuck$exe add 'Done 02' --state done
+exec tuck$exe add 'Done 03' --state done
+exec tuck$exe add 'Done 04' --state done
+exec tuck$exe add 'Done 05' --state done
+exec tuck$exe add 'Done 06' --state done
+exec tuck$exe add 'Done 07' --state done
+exec tuck$exe add 'Done 08' --state done
+exec tuck$exe add 'Done 09' --state done
+exec tuck$exe add 'Done 10' --state done
+exec tuck$exe add 'Done 11' --state done
 
-exec weft$exe list --json
+exec tuck$exe list --json
 json
 stdout -count=10 '"state": "todo"'
 stdout -count=10 '"state": "backlog"'
@@ -49,18 +49,18 @@ stdout '"title": "Doing item"'
 ! stdout '"title": "Backlog 11"'
 ! stdout '"title": "Done 01"'
 
-exec weft$exe list todo --json
+exec tuck$exe list todo --json
 json
 stdout -count=11 '"state": "todo"'
 stdout '"title": "Todo 11"'
-exec weft$exe list --limit 2
+exec tuck$exe list --limit 2
 stdout 'Doing item'
 stdout 'Todo 01'
 ! stdout 'Backlog'
 
-exec weft$exe sync
-stdout 'Synchronized WEFT.md'
-grep -count=10 '^- [0-9][0-9][0-9] Todo ' WEFT.md
-grep -count=10 '^- [0-9][0-9][0-9] Backlog ' WEFT.md
-grep -count=10 '^- [0-9][0-9][0-9] Done ' WEFT.md
-grep 'Doing item' WEFT.md
+exec tuck$exe sync
+stdout 'Synchronized TUCK.md'
+grep -count=10 '^- [0-9][0-9][0-9] Todo ' TUCK.md
+grep -count=10 '^- [0-9][0-9][0-9] Backlog ' TUCK.md
+grep -count=10 '^- [0-9][0-9][0-9] Done ' TUCK.md
+grep 'Doing item' TUCK.md

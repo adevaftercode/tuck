@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"weft/internal/cli"
+	"tuck/internal/cli"
 )
 
 func main() {

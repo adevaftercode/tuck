@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-const transactionDirectory = ".weft-txn"
+const transactionDirectory = ".tuck-txn"
 
 type Change struct {
 	Path   string
@@ -306,7 +306,7 @@ func writeAtomic(destination string, data []byte, mode fs.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
 		return err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(destination), ".weft-write-*")
+	temp, err := os.CreateTemp(filepath.Dir(destination), ".tuck-write-*")
 	if err != nil {
 		return err
 	}
@@ -366,7 +366,7 @@ func removeWriteTemps(directory string) error {
 	}
 	removed := false
 	for _, entry := range entries {
-		if !strings.HasPrefix(entry.Name(), ".weft-write-") {
+		if !strings.HasPrefix(entry.Name(), ".tuck-write-") {
 			continue
 		}
 		path := filepath.Join(directory, entry.Name())
@@ -410,12 +410,12 @@ func safeRelative(path string) (string, error) {
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || clean != normalized {
 		return "", fmt.Errorf("transaction path %q is not a canonical board-relative path", path)
 	}
-	if clean == "WEFT.md" {
+	if clean == "TUCK.md" {
 		return clean, nil
 	}
 	parts := strings.Split(clean, "/")
 	if len(parts) != 3 || parts[0] != "tasks" || !validTaskState(parts[1]) || parts[2] == "." || filepath.Ext(parts[2]) != ".md" {
-		return "", fmt.Errorf("transaction path %q must name WEFT.md or a task Markdown file", path)
+		return "", fmt.Errorf("transaction path %q must name TUCK.md or a task Markdown file", path)
 	}
 	return clean, nil
 }

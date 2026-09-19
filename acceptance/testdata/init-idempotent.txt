@@ -1,33 +1,33 @@
 # Init creates missing board files, preserves existing projection, and is repeatable.
-exec weft$exe init
-stdout 'existing WEFT.md was left unchanged'
-cmp WEFT.md initial-projection.md
+exec tuck$exe init
+stdout 'existing TUCK.md was left unchanged'
+cmp TUCK.md initial-projection.md
 exists tasks/backlog tasks/todo tasks/doing tasks/done
 
-exec weft$exe sync
-stdout 'Synchronized WEFT.md'
-grep '^# Weft$' WEFT.md
-! cmp WEFT.md initial-projection.md
+exec tuck$exe sync
+stdout 'Synchronized TUCK.md'
+grep '^# Tuck$' TUCK.md
+! cmp TUCK.md initial-projection.md
 
-exec weft$exe init --json
+exec tuck$exe init --json
 json
 stdout '"initialized": true'
 stdout '"projection_updated": false'
-exec weft$exe check --json
+exec tuck$exe check --json
 json
 stdout '"ok": true'
 
-exec weft$exe add 'Keep existing task' --state todo
+exec tuck$exe add 'Keep existing task' --state todo
 cp tasks/todo/001-keep-existing-task.md task-before-init.md
-exec weft$exe init --json
+exec tuck$exe init --json
 json
 stdout '"projection_updated": false'
 cmp tasks/todo/001-keep-existing-task.md task-before-init.md
-exec weft$exe list todo --json
+exec tuck$exe list todo --json
 json
 stdout '"title": "Keep existing task"'
 
--- WEFT.md --
+-- TUCK.md --
 # A manually maintained projection
 -- initial-projection.md --
 # A manually maintained projection

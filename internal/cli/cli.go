@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"weft/internal/board"
-	"weft/internal/id"
-	"weft/internal/store"
-	"weft/internal/task"
+	"tuck/internal/board"
+	"tuck/internal/id"
+	"tuck/internal/store"
+	"tuck/internal/task"
 )
 
 type usageError struct{ message string }
@@ -43,14 +43,14 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 	if args[0] == "--root" {
 		if len(args) < 3 {
-			fmt.Fprintln(stderr, "weft: --root requires a path and command")
+			fmt.Fprintln(stderr, "tuck: --root requires a path and command")
 			return 2
 		}
 		args = append([]string{args[2], "--root", args[1]}, args[3:]...)
 	} else if strings.HasPrefix(args[0], "--root=") {
 		root := strings.TrimPrefix(args[0], "--root=")
 		if len(args) < 2 {
-			fmt.Fprintln(stderr, "weft: --root requires a command")
+			fmt.Fprintln(stderr, "tuck: --root requires a command")
 			return 2
 		}
 		args = append([]string{args[1], "--root", root}, args[2:]...)
@@ -61,16 +61,16 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 	command := args[0]
 	if command == "--version" || command == "version" {
-		fmt.Fprintln(stdout, "weft dev")
+		fmt.Fprintln(stdout, "tuck dev")
 		return 0
 	}
 	if _, ok := commandHelp[command]; !ok {
-		fmt.Fprintf(stderr, "weft: unknown command %q\n\n%s", command, rootHelp)
+		fmt.Fprintf(stderr, "tuck: unknown command %q\n\n%s", command, rootHelp)
 		return 2
 	}
 	parsed, err := parseOptions(args[1:])
 	if err != nil {
-		fmt.Fprintf(stderr, "weft %s: %s\n", command, err)
+		fmt.Fprintf(stderr, "tuck %s: %s\n", command, err)
 		return 2
 	}
 	if hasHelp(args[1:]) {
@@ -78,16 +78,16 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if err := validateOptions(command, parsed); err != nil {
-		fmt.Fprintf(stderr, "weft %s: %s\n\n%s", command, err, commandHelp[command])
+		fmt.Fprintf(stderr, "tuck %s: %s\n\n%s", command, err, commandHelp[command])
 		return 2
 	}
 	if err := execute(command, parsed, stdout, stderr); err != nil {
 		var usage usageError
 		if errors.As(err, &usage) {
-			fmt.Fprintf(stderr, "weft %s: %s\n\n%s", command, usage.Error(), commandHelp[command])
+			fmt.Fprintf(stderr, "tuck %s: %s\n\n%s", command, usage.Error(), commandHelp[command])
 			return 2
 		}
-		fmt.Fprintf(stderr, "weft %s: %s\n", command, err)
+		fmt.Fprintf(stderr, "tuck %s: %s\n", command, err)
 		return 1
 	}
 	return 0
@@ -305,14 +305,14 @@ func initialize(root string, stdout io.Writer, jsonOutput bool) error {
 	}
 	projectionUpdated := false
 	if stale {
-		if _, err := os.Stat(filepath.Join(root, "WEFT.md")); err == nil {
+		if _, err := os.Stat(filepath.Join(root, "TUCK.md")); err == nil {
 			if jsonOutput {
 				return writeJSON(stdout, map[string]any{"initialized": true, "root": root, "projection_updated": false})
 			}
-			fmt.Fprintln(stdout, "Initialized board; existing WEFT.md was left unchanged. Run `weft sync` to regenerate it.")
+			fmt.Fprintln(stdout, "Initialized board; existing TUCK.md was left unchanged. Run `tuck sync` to regenerate it.")
 			return nil
 		}
-		if err := store.Commit(root, []store.Change{{Path: "WEFT.md", Data: b.Projection()}}); err != nil {
+		if err := store.Commit(root, []store.Change{{Path: "TUCK.md", Data: b.Projection()}}); err != nil {
 			return err
 		}
 		projectionUpdated = true
@@ -320,7 +320,7 @@ func initialize(root string, stdout io.Writer, jsonOutput bool) error {
 	if jsonOutput {
 		return writeJSON(stdout, map[string]any{"initialized": true, "root": root, "projection_updated": projectionUpdated})
 	}
-	fmt.Fprintln(stdout, "Initialized Weft board.")
+	fmt.Fprintln(stdout, "Initialized Tuck board.")
 	return nil
 }
 
@@ -344,7 +344,7 @@ func ensureDirectory(path string) error {
 func checkBoard(b *board.Board, pendingRecovery bool, stdout io.Writer, jsonOutput bool) error {
 	issues := b.CheckIssues()
 	if pendingRecovery {
-		issues = append(issues, board.Issue{Path: ".weft-txn", Message: "an interrupted operation needs recovery; run a Weft command other than check"})
+		issues = append(issues, board.Issue{Path: ".tuck-txn", Message: "an interrupted operation needs recovery; run a Tuck command other than check"})
 	}
 	projectionIssue, stale, err := b.ProjectionIssue()
 	if err != nil {
@@ -363,7 +363,7 @@ func checkBoard(b *board.Board, pendingRecovery bool, stdout io.Writer, jsonOutp
 		return fmt.Errorf("found %d board issue(s)", len(issues))
 	}
 	if len(issues) == 0 {
-		fmt.Fprintf(stdout, "Weft board OK (%d tasks).\n", len(b.Tasks))
+		fmt.Fprintf(stdout, "Tuck board OK (%d tasks).\n", len(b.Tasks))
 		return nil
 	}
 	for _, issue := range issues {
@@ -382,15 +382,15 @@ func syncBoard(b *board.Board, stdout, stderr io.Writer, jsonOutput bool) error 
 				return err
 			}
 		}
-		return errors.New("sync aborted; WEFT.md was left untouched")
+		return errors.New("sync aborted; TUCK.md was left untouched")
 	}
-	if err := store.Commit(b.Root, []store.Change{{Path: "WEFT.md", Data: b.Projection()}}); err != nil {
+	if err := store.Commit(b.Root, []store.Change{{Path: "TUCK.md", Data: b.Projection()}}); err != nil {
 		return err
 	}
 	if jsonOutput {
 		return writeJSON(stdout, map[string]any{"synced": true, "task_count": len(b.Tasks)})
 	}
-	fmt.Fprintln(stdout, "Synchronized WEFT.md.")
+	fmt.Fprintln(stdout, "Synchronized TUCK.md.")
 	return nil
 }
 
@@ -998,7 +998,7 @@ func commandMeta(opts options, b *board.Board, stdout io.Writer) error {
 			return usageError{message: "meta unset requires a task and key"}
 		}
 		if task.IsReserved(opts.pos[2]) {
-			return usageError{message: fmt.Sprintf("metadata key %q is reserved by Weft", opts.pos[2])}
+			return usageError{message: fmt.Sprintf("metadata key %q is reserved by Tuck", opts.pos[2])}
 		}
 		if _, ok := t.Metadata[opts.pos[2]]; !ok {
 			if opts.json {

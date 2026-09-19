@@ -97,7 +97,7 @@ func Resolve(cwd, explicit string) (Root, error) {
 		}
 	}
 	for current := cwd; ; current = filepath.Dir(current) {
-		if exists(filepath.Join(current, "WEFT.md")) || exists(filepath.Join(current, "tasks")) {
+		if exists(filepath.Join(current, "TUCK.md")) || exists(filepath.Join(current, "tasks")) {
 			return Root{Path: current}, nil
 		}
 		if current == filepath.Dir(current) {

@@ -1,103 +1,103 @@
 # Invalid argument counts, option values, and unsupported flags return errors.
-exec weft$exe init
-exec weft$exe add 'Argument target' --state todo
+exec tuck$exe init
+exec tuck$exe add 'Argument target' --state todo
 
-! exec weft$exe init extra
+! exec tuck$exe init extra
 stderr 'init takes no positional arguments'
-! exec weft$exe sync extra
+! exec tuck$exe sync extra
 stderr 'sync takes no positional arguments'
-! exec weft$exe check extra
+! exec tuck$exe check extra
 stderr 'check takes no positional arguments'
 
-! exec weft$exe add
+! exec tuck$exe add
 stderr 'add requires a title'
-! exec weft$exe list one two
+! exec tuck$exe list one two
 stderr 'list accepts at most one state'
-! exec weft$exe list someday
+! exec tuck$exe list someday
 stderr 'invalid state "someday"'
-! exec weft$exe list --state todo
+! exec tuck$exe list --state todo
 stderr '--state is not supported for this command'
-! exec weft$exe list --limit 0
+! exec tuck$exe list --limit 0
 stderr '--limit must be a positive integer'
-! exec weft$exe list --limit nope
+! exec tuck$exe list --limit nope
 stderr '--limit must be a positive integer'
-! exec weft$exe show
+! exec tuck$exe show
 stderr 'show requires one task number or ID'
-! exec weft$exe show 001 extra
+! exec tuck$exe show 001 extra
 stderr 'show requires one task number or ID'
 
-! exec weft$exe find
+! exec tuck$exe find
 stderr 'find requires a query'
-! exec weft$exe find word --recent --state todo
+! exec tuck$exe find word --recent --state todo
 stderr '--recent can only be combined with --state done'
-! exec weft$exe find word --meta
+! exec tuck$exe find word --meta
 stderr '--meta requires a value'
-! exec weft$exe find word --meta broken
+! exec tuck$exe find word --meta broken
 stderr '--meta must be KEY=JSON-value'
-! exec weft$exe find word --meta '=1'
+! exec tuck$exe find word --meta '=1'
 stderr '--meta must be KEY=JSON-value'
-! exec weft$exe find word --meta 'priority='
+! exec tuck$exe find word --meta 'priority='
 stderr '--meta must be KEY=JSON-value'
-! exec weft$exe find word --meta id=1
+! exec tuck$exe find word --meta id=1
 stderr '--meta cannot filter reserved field "id"'
-! exec weft$exe find word --meta 'priority=not-json'
+! exec tuck$exe find word --meta 'priority=not-json'
 stderr 'invalid --meta JSON value'
-! exec weft$exe find word --before other
+! exec tuck$exe find word --before other
 stderr 'reorder placement options are only supported by reorder'
 
-! exec weft$exe recent anything
+! exec tuck$exe recent anything
 stderr 'recent takes no positional arguments'
-! exec weft$exe recent --limit -1
+! exec tuck$exe recent --limit -1
 stderr '--limit must be a positive integer'
-! exec weft$exe recent --meta key=1
+! exec tuck$exe recent --meta key=1
 stderr '--meta is not supported for this command'
 
-! exec weft$exe start
+! exec tuck$exe start
 stderr 'start requires one task number or ID'
-! exec weft$exe start 001 extra
+! exec tuck$exe start 001 extra
 stderr 'start requires one task number or ID'
-! exec weft$exe done
+! exec tuck$exe done
 stderr 'done requires one task number or ID'
-! exec weft$exe reopen
+! exec tuck$exe reopen
 stderr 'reopen requires one task number or ID'
-! exec weft$exe move 001
+! exec tuck$exe move 001
 stderr 'move requires a task number or ID and a state'
-! exec weft$exe move 001 nowhere
+! exec tuck$exe move 001 nowhere
 stderr 'invalid state "nowhere"'
-! exec weft$exe move 001 todo extra
+! exec tuck$exe move 001 todo extra
 stderr 'move requires a task number or ID and a state'
-! exec weft$exe rename 001
+! exec tuck$exe rename 001
 stderr 'rename requires a task number or ID and a title'
-! exec weft$exe rename 001 ''
+! exec tuck$exe rename 001 ''
 stderr 'task title cannot be empty'
 
-! exec weft$exe meta
+! exec tuck$exe meta
 stderr 'meta requires get, set, or unset and a task handle'
-! exec weft$exe meta unknown 001
+! exec tuck$exe meta unknown 001
 stderr 'unknown metadata operation "unknown"'
-! exec weft$exe meta get 001 one two
+! exec tuck$exe meta get 001 one two
 stderr 'meta get accepts an optional key'
-! exec weft$exe meta set 001 key
+! exec tuck$exe meta set 001 key
 stderr 'meta set requires a task, key, and one JSON value'
-! exec weft$exe meta unset 001
+! exec tuck$exe meta unset 001
 stderr 'meta unset requires a task and key'
 
-! exec weft$exe add title --limit 1
+! exec tuck$exe add title --limit 1
 stderr '--limit is not supported for this command'
-! exec weft$exe list --first
+! exec tuck$exe list --first
 stderr 'reorder placement options are only supported by reorder'
 
-! exec weft$exe add title --state
+! exec tuck$exe add title --state
 stderr '--state requires a value'
-! exec weft$exe add title --state=
+! exec tuck$exe add title --state=
 stderr '--state requires a value'
-! exec weft$exe list --limit
+! exec tuck$exe list --limit
 stderr '--limit requires a value'
-! exec weft$exe find word --meta=
+! exec tuck$exe find word --meta=
 stderr '--meta must be KEY=JSON-value'
-! exec weft$exe reorder 001 --before
+! exec tuck$exe reorder 001 --before
 stderr '--before requires a value'
-! exec weft$exe reorder 001 --after=
+! exec tuck$exe reorder 001 --after=
 stderr '--after requires a value'
-! exec weft$exe list --limit=-2
+! exec tuck$exe list --limit=-2
 stderr '--limit must be a positive integer'

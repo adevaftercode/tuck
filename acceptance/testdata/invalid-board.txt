@@ -1,11 +1,11 @@
 # Invalid task data makes check and sync fail; sync leaves the projection intact.
-exec weft$exe init
+exec tuck$exe init
 cp malformed-task.md tasks/todo/001-invalid-task.md
 cp invalid-yaml.md tasks/todo/002-invalid-yaml.md
 cp missing-id.md tasks/todo/003-missing-id.md
 cp no-heading.md tasks/todo/004-no-heading.md
 cp nested-metadata.md tasks/todo/005-nested-metadata.md
-cp WEFT.md projection-before.md
+cp TUCK.md projection-before.md
 
 exitcode 1 init --json
 stderr 'existing board is invalid'
@@ -26,11 +26,11 @@ stdout '"synced": false'
 stdout 'task must begin with YAML front matter'
 stdout 'malformed front matter'
 stderr 'warning: tasks/todo/001-invalid-task.md'
-stderr 'WEFT.md was left untouched'
-cmp WEFT.md projection-before.md
+stderr 'TUCK.md was left untouched'
+cmp TUCK.md projection-before.md
 
 -- malformed-task.md --
-This file is not a Weft task.
+This file is not a Tuck task.
 -- invalid-yaml.md --
 ---
 id: [broken

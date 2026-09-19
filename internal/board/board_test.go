@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"weft/internal/task"
+	"tuck/internal/task"
 )
 
 func TestProjectionLimitsAndCompletionRecency(t *testing.T) {

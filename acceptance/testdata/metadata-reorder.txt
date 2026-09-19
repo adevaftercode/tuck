@@ -1,44 +1,44 @@
 # Reorder tasks and read, filter, and remove typed metadata.
-exec weft$exe init
-exec weft$exe add 'First draft' --state todo --json
+exec tuck$exe init
+exec tuck$exe add 'First draft' --state todo --json
 json
 stdout '"number": "001"'
-exec weft$exe add 'Second draft' --state todo --json
+exec tuck$exe add 'Second draft' --state todo --json
 json
 stdout '"number": "002"'
 
-exec weft$exe meta set 001 priority 3 --json
+exec tuck$exe meta set 001 priority 3 --json
 json
 stdout '"priority": 3'
-exec weft$exe meta set 001 labels '["web", "images"]' --json
+exec tuck$exe meta set 001 labels '["web", "images"]' --json
 json
 stdout '"labels":'
 stdout '"images"'
 
-exec weft$exe meta get 001 priority --json
+exec tuck$exe meta get 001 priority --json
 json
 stdout '"key": "priority"'
 stdout '"value": 3'
 
-exec weft$exe find draft --meta priority=3 --meta 'labels=["web","images"]' --json
+exec tuck$exe find draft --meta priority=3 --meta 'labels=["web","images"]' --json
 json
 stdout '"number": "001"'
 ! stdout '"number": "002"'
 
-exec weft$exe reorder 002 --first --json
+exec tuck$exe reorder 002 --first --json
 json
 stdout '"order": 1'
-exec weft$exe list todo --json
+exec tuck$exe list todo --json
 json
 stdout '(?s)"title": "Second draft".*"title": "First draft"'
 
-exec weft$exe meta unset 001 priority --json
+exec tuck$exe meta unset 001 priority --json
 json
 ! stdout '"priority":'
-exec weft$exe meta get 001 --json
+exec tuck$exe meta get 001 --json
 json
 stdout '"labels":'
 ! stdout '"priority":'
-exec weft$exe check --json
+exec tuck$exe check --json
 json
 stdout '"ok": true'

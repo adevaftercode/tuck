@@ -1,16 +1,16 @@
 # check reports a pending journal without changing it.
-exec weft$exe init
-mkdir .weft-txn
-cp unfinished.txt .weft-txn/unfinished
+exec tuck$exe init
+mkdir .tuck-txn
+cp unfinished.txt .tuck-txn/unfinished
 
 exitcode 1 check --json
 json
 stdout '"ok": false'
-stdout '"path": ".weft-txn"'
+stdout '"path": ".tuck-txn"'
 stdout 'interrupted operation needs recovery'
 stderr 'found 1 board issue'
-exists .weft-txn/unfinished
-cmp .weft-txn/unfinished unfinished.txt
+exists .tuck-txn/unfinished
+cmp .tuck-txn/unfinished unfinished.txt
 
 -- unfinished.txt --
 unfinished journal marker

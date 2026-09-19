@@ -11,8 +11,8 @@ import (
 	"time"
 	"unicode"
 
-	"weft/internal/store"
-	"weft/internal/task"
+	"tuck/internal/store"
+	"tuck/internal/task"
 )
 
 type Issue struct {
@@ -39,7 +39,7 @@ func Load(root string) *Board {
 	b := &Board{Root: root, OriginalPath: make(map[string]string), Dirty: make(map[string]bool)}
 	stateRoot := filepath.Join(root, "tasks")
 	if info, err := os.Lstat(stateRoot); err != nil {
-		b.Issues = append(b.Issues, Issue{Path: "tasks", Message: "missing tasks directory; run weft init"})
+		b.Issues = append(b.Issues, Issue{Path: "tasks", Message: "missing tasks directory; run tuck init"})
 		return b
 	} else if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		b.Issues = append(b.Issues, Issue{Path: "tasks", Message: "tasks path is not a real directory"})
@@ -181,7 +181,7 @@ func (b *Board) ProjectionIssue() (Issue, bool, error) {
 		return Issue{}, false, err
 	}
 	if stale {
-		return Issue{Path: "WEFT.md", Message: "projection is stale; run weft sync"}, true, nil
+		return Issue{Path: "TUCK.md", Message: "projection is stale; run tuck sync"}, true, nil
 	}
 	return Issue{}, false, nil
 }
@@ -260,7 +260,7 @@ func (b *Board) Recent(limit int) []*task.Task {
 
 func (b *Board) Projection() []byte {
 	var out strings.Builder
-	out.WriteString("# Weft\n\n")
+	out.WriteString("# Tuck\n\n")
 	writeSection := func(name string, tasks []*task.Task) {
 		out.WriteString("## " + name + "\n\n")
 		if len(tasks) == 0 {
@@ -292,7 +292,7 @@ func oneLine(value string) string {
 }
 
 func IsProjectionStale(root string, projection []byte) (bool, error) {
-	current, err := os.ReadFile(filepath.Join(root, "WEFT.md"))
+	current, err := os.ReadFile(filepath.Join(root, "TUCK.md"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return true, nil
@@ -321,17 +321,17 @@ func (b *Board) Changes(includeProjection bool) ([]store.Change, error) {
 		changes[t.Path] = store.Change{Path: t.Path, Data: encoded}
 	}
 	if includeProjection {
-		changes["WEFT.md"] = store.Change{Path: "WEFT.md", Data: b.Projection()}
+		changes["TUCK.md"] = store.Change{Path: "TUCK.md", Data: b.Projection()}
 	}
 	result := make([]store.Change, 0, len(changes))
 	for _, change := range changes {
 		result = append(result, change)
 	}
 	sort.Slice(result, func(i, j int) bool {
-		if result[i].Path == "WEFT.md" {
+		if result[i].Path == "TUCK.md" {
 			return false
 		}
-		if result[j].Path == "WEFT.md" {
+		if result[j].Path == "TUCK.md" {
 			return true
 		}
 		return result[i].Path < result[j].Path
@@ -505,7 +505,7 @@ func (b *Board) SetMetadata(t *task.Task, key string, value any) error {
 		return fmt.Errorf("metadata key cannot be empty or contain newlines")
 	}
 	if task.IsReserved(key) {
-		return fmt.Errorf("metadata key %q is reserved by Weft", key)
+		return fmt.Errorf("metadata key %q is reserved by Tuck", key)
 	}
 	if _, err := task.ValueYAML(value); err != nil {
 		return err
@@ -517,7 +517,7 @@ func (b *Board) SetMetadata(t *task.Task, key string, value any) error {
 
 func (b *Board) UnsetMetadata(t *task.Task, key string) error {
 	if task.IsReserved(key) {
-		return fmt.Errorf("metadata key %q is reserved by Weft", key)
+		return fmt.Errorf("metadata key %q is reserved by Tuck", key)
 	}
 	delete(t.Metadata, key)
 	b.Dirty[t.ID] = true

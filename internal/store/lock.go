@@ -16,14 +16,14 @@ type Lock struct{ lock *flock.Flock }
 func Acquire(root Root) (*Lock, error) {
 	path := ""
 	if root.GitCommon != "" {
-		path = filepath.Join(root.GitCommon, "weft.lock")
+		path = filepath.Join(root.GitCommon, "tuck.lock")
 	} else {
 		cache, err := os.UserCacheDir()
 		if err != nil {
 			cache = os.TempDir()
 		}
 		digest := sha256.Sum256([]byte(filepath.Clean(root.Path)))
-		path = filepath.Join(cache, "weft", fmt.Sprintf("%x.lock", digest[:]))
+		path = filepath.Join(cache, "tuck", fmt.Sprintf("%x.lock", digest[:]))
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err

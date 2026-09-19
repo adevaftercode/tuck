@@ -2,20 +2,20 @@
 # A linked Git worktree uses the primary worktree's board.
 exec git init repository
 cd repository
-exec git config user.name 'Weft Acceptance'
-exec git config user.email weft-acceptance@example.invalid
+exec git config user.name 'Tuck Acceptance'
+exec git config user.email tuck-acceptance@example.invalid
 exec git commit --allow-empty -m initial
 exec git worktree add ../linked --detach
 
-exec weft$exe init
-exec weft$exe add 'Primary worktree task'
+exec tuck$exe init
+exec tuck$exe add 'Primary worktree task'
 cd ../linked
-exec weft$exe add 'Linked worktree task'
+exec tuck$exe add 'Linked worktree task'
 exists ../repository/tasks/backlog/001-primary-worktree-task.md
 exists ../repository/tasks/backlog/002-linked-worktree-task.md
-! exists WEFT.md
+! exists TUCK.md
 
-exec weft$exe list backlog --json
+exec tuck$exe list backlog --json
 json
 stdout '"title": "Primary worktree task"'
 stdout '"title": "Linked worktree task"'

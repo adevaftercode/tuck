@@ -23,7 +23,7 @@ func TestAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	binDir := t.TempDir()
-	binaryName := "weft"
+	binaryName := "tuck"
 	if runtime.GOOS == "windows" {
 		binaryName += ".exe"
 	}
@@ -32,10 +32,10 @@ func TestAcceptance(t *testing.T) {
 		goBinary += ".exe"
 	}
 	binaryPath := filepath.Join(binDir, binaryName)
-	build := exec.Command(goBinary, "build", "-o", binaryPath, "./cmd/weft")
+	build := exec.Command(goBinary, "build", "-o", binaryPath, "./cmd/tuck")
 	build.Dir = repoRoot
 	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build weft: %v\n%s", err, output)
+		t.Fatalf("build tuck: %v\n%s", err, output)
 	}
 
 	testscript.Run(t, testscript.Params{
@@ -48,7 +48,7 @@ func TestAcceptance(t *testing.T) {
 			"exitcode":        checkExitCode,
 		},
 		Setup: func(env *testscript.Env) error {
-			env.Values["weftBinary"] = binaryPath
+			env.Values["tuckBinary"] = binaryPath
 			env.Setenv("PATH", binDir+string(os.PathListSeparator)+env.Getenv("PATH"))
 			home := filepath.Join(env.WorkDir, "home")
 			env.Setenv("HOME", home)
@@ -62,15 +62,15 @@ func TestAcceptance(t *testing.T) {
 
 func checkExitCode(ts *testscript.TestScript, _ bool, args []string) {
 	if len(args) < 2 {
-		ts.Fatalf("exitcode requires an expected status and a Weft command")
+		ts.Fatalf("exitcode requires an expected status and a Tuck command")
 	}
 	expected, err := strconv.Atoi(args[0])
 	if err != nil {
 		ts.Fatalf("invalid expected exit status %q", args[0])
 	}
-	binary, ok := ts.Value("weftBinary").(string)
+	binary, ok := ts.Value("tuckBinary").(string)
 	if !ok || binary == "" {
-		ts.Fatalf("Weft binary path was not set up")
+		ts.Fatalf("Tuck binary path was not set up")
 	}
 	cmd := exec.Command(binary, args[1:]...)
 	cmd.Dir = ts.MkAbs(".")
@@ -82,12 +82,12 @@ func checkExitCode(ts *testscript.TestScript, _ bool, args []string) {
 	if err != nil {
 		var exitErr *exec.ExitError
 		if !errors.As(err, &exitErr) {
-			ts.Fatalf("run Weft: %v", err)
+			ts.Fatalf("run Tuck: %v", err)
 		}
 		actual = exitErr.ExitCode()
 	}
 	if actual != expected {
-		ts.Fatalf("Weft exited with status %d, want %d", actual, expected)
+		ts.Fatalf("Tuck exited with status %d, want %d", actual, expected)
 	}
 	_, _ = fmt.Fprint(ts.Stdout(), stdout.String())
 	_, _ = fmt.Fprint(ts.Stderr(), stderr.String())
@@ -148,7 +148,7 @@ func captureTaskID(ts *testscript.TestScript, _ bool, args []string) {
 		ts.Fatalf("cannot read task ID from stdout JSON: %v", err)
 	}
 	if len(output.Task.ID) != 30 || !strings.HasPrefix(output.Task.ID, "wft_") {
-		ts.Fatalf("stdout task ID %q does not have the Weft ID shape", output.Task.ID)
+		ts.Fatalf("stdout task ID %q does not have the Tuck ID shape", output.Task.ID)
 	}
 	ts.Setenv("TASK_ID", output.Task.ID)
 }

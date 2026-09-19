@@ -1,25 +1,25 @@
 # Detect and repair a stale projection, then verify JSON status.
-exec weft$exe init
-exec weft$exe add 'Refresh the board view' --state todo
+exec tuck$exe init
+exec tuck$exe add 'Refresh the board view' --state todo
 
-cp stale-projection.md WEFT.md
-cp WEFT.md projection-before-check.md
+cp stale-projection.md TUCK.md
+cp TUCK.md projection-before-check.md
 exitcode 1 check --json
 json
 stdout '"ok": false'
-stdout 'projection is stale; run weft sync'
+stdout 'projection is stale; run tuck sync'
 stderr 'found 1 board issue'
-cmp WEFT.md projection-before-check.md
+cmp TUCK.md projection-before-check.md
 
-exec weft$exe sync --json
+exec tuck$exe sync --json
 json
 stdout '"synced": true'
 stdout '"task_count": 1'
 ! stderr .+
-exec weft$exe check --json
+exec tuck$exe check --json
 json
 stdout '"ok": true'
-grep 'Refresh the board view' WEFT.md
+grep 'Refresh the board view' TUCK.md
 
 -- stale-projection.md --
 # Stale projection

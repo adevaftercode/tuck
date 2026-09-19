@@ -1,17 +1,17 @@
 # Metadata supports scalar and flat-array JSON values, and preserves them on disk.
-exec weft$exe init
-exec weft$exe add 'Metadata record' --state todo
+exec tuck$exe init
+exec tuck$exe add 'Metadata record' --state todo
 
-exec weft$exe meta set 001 note '"a string"' --json
+exec tuck$exe meta set 001 note '"a string"' --json
 json
-exec weft$exe meta set 001 count 4 --json
+exec tuck$exe meta set 001 count 4 --json
 json
-exec weft$exe meta set 001 ratio -- -1.25
-exec weft$exe meta set 001 enabled true
-exec weft$exe meta set 001 absent null
-exec weft$exe meta set 001 values '["x", 2, false, null]'
+exec tuck$exe meta set 001 ratio -- -1.25
+exec tuck$exe meta set 001 enabled true
+exec tuck$exe meta set 001 absent null
+exec tuck$exe meta set 001 values '["x", 2, false, null]'
 
-exec weft$exe meta get 001 --json
+exec tuck$exe meta get 001 --json
 json
 stdout '"note": "a string"'
 stdout '"count": 4'
@@ -20,66 +20,66 @@ stdout '"enabled": true'
 stdout '"absent": null'
 stdout '"values": '
 
-exec weft$exe meta get 001 count --json
+exec tuck$exe meta get 001 count --json
 json
 stdout '"key": "count"'
 stdout '"value": 4'
-exec weft$exe meta get 001 note
+exec tuck$exe meta get 001 note
 stdout 'note = "a string"'
-exec weft$exe meta get 001
+exec tuck$exe meta get 001
 stdout 'absent = null'
 stdout 'enabled = true'
 stdout 'note = "a string"'
 
-exec weft$exe show 001
+exec tuck$exe show 001
 stdout 'note: a string'
 stdout 'values: '
 stdout 'false, null'
-exec weft$exe check --json
+exec tuck$exe check --json
 json
 stdout '"ok": true'
 
-exec weft$exe meta unset 001 count
+exec tuck$exe meta unset 001 count
 stdout 'Unset count'
-exec weft$exe meta unset 001 missing
+exec tuck$exe meta unset 001 missing
 stdout 'missing is not set'
-exec weft$exe meta unset 001 missing --json
+exec tuck$exe meta unset 001 missing --json
 json
-exec weft$exe meta get 001 --json
+exec tuck$exe meta get 001 --json
 json
 ! stdout '"count":'
 
-! exec weft$exe meta get 001 missing
+! exec tuck$exe meta get 001 missing
 stderr 'metadata key "missing" is not set'
-! exec weft$exe meta set 001 object '{"nested": 1}'
+! exec tuck$exe meta set 001 object '{"nested": 1}'
 stderr 'metadata value must be one JSON scalar or flat array'
-! exec weft$exe meta set 001 nested '[[1, 2]]'
+! exec tuck$exe meta set 001 nested '[[1, 2]]'
 stderr 'metadata value must be one JSON scalar or flat array'
-! exec weft$exe meta set 001 invalid 'not-json'
+! exec tuck$exe meta set 001 invalid 'not-json'
 stderr 'metadata value must be one JSON scalar or flat array'
-! exec weft$exe meta set 001 '' '"value"'
+! exec tuck$exe meta set 001 '' '"value"'
 stderr 'metadata key cannot be empty'
-! exec weft$exe meta set 001 number 10
-stderr 'reserved by Weft'
-! exec weft$exe meta set 001 order 10
-stderr 'reserved by Weft'
-! exec weft$exe meta set 001 created_at '"2026-01-01T00:00:00Z"'
-stderr 'reserved by Weft'
-! exec weft$exe meta set 001 completed_at '"2026-01-01T00:00:00Z"'
-stderr 'reserved by Weft'
-! exec weft$exe meta unset 001 number
-stderr 'reserved by Weft'
-! exec weft$exe meta get 001 missing --json
+! exec tuck$exe meta set 001 number 10
+stderr 'reserved by Tuck'
+! exec tuck$exe meta set 001 order 10
+stderr 'reserved by Tuck'
+! exec tuck$exe meta set 001 created_at '"2026-01-01T00:00:00Z"'
+stderr 'reserved by Tuck'
+! exec tuck$exe meta set 001 completed_at '"2026-01-01T00:00:00Z"'
+stderr 'reserved by Tuck'
+! exec tuck$exe meta unset 001 number
+stderr 'reserved by Tuck'
+! exec tuck$exe meta get 001 missing --json
 stderr 'metadata key "missing" is not set'
 
-exec weft$exe rename 001 'Metadata record renamed'
-exec weft$exe move 001 doing
-exec weft$exe show 001 --json
+exec tuck$exe rename 001 'Metadata record renamed'
+exec tuck$exe move 001 doing
+exec tuck$exe show 001 --json
 json
 stdout '"title": "Metadata record renamed"'
 stdout '"note": "a string"'
 stdout '"values":'
 exists tasks/doing/001-metadata-record-renamed.md
-exec weft$exe check --json
+exec tuck$exe check --json
 json
 stdout '"ok": true'
