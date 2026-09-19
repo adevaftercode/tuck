@@ -1,8 +1,8 @@
 # Tuck
 
 Tuck is a small, deterministic CLI for operating a product board stored in
-`TUCK.md` and Markdown task files. Task records are the source of truth;
-`TUCK.md` is a generated view.
+`board.md` and Markdown task files. Task records are the source of truth;
+`board.md` is a generated view.
 
 ## Build and install
 
@@ -84,9 +84,9 @@ tuck find images --meta priority=3
 
 ## Board projection and validation
 
-`TUCK.md` lists all Doing tasks, the first 10 Todo and Backlog tasks, and the
+`board.md` lists all Doing tasks, the first 10 Todo and Backlog tasks, and the
 10 most recently completed tasks. `sync` regenerates the projection only when
-all task records are valid. It warns and leaves `TUCK.md` untouched otherwise.
+all task records are valid. It warns and leaves `board.md` untouched otherwise.
 `check` validates records and reports a stale projection without editing it.
 
 The task directory determines each task's state. The first level-one Markdown

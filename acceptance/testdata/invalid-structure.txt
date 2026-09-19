@@ -17,13 +17,13 @@ stdout 'todo order must be contiguous starting at 1'
 stdout 'projection is stale; run tuck sync'
 stderr 'found 6 board issue'
 
-cp TUCK.md projection-before-sync.md
+cp board.md projection-before-sync.md
 exitcode 1 sync --json
 json
 stdout '"synced": false'
 stderr 'warning: tasks/unexpected'
 stderr 'duplicate task id'
-cmp TUCK.md projection-before-sync.md
+cmp board.md projection-before-sync.md
 
 -- first-task.md --
 ---

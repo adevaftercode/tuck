@@ -13,7 +13,7 @@ cd ../linked
 exec tuck$exe add 'Linked worktree task'
 exists ../repository/tasks/backlog/001-primary-worktree-task.md
 exists ../repository/tasks/backlog/002-linked-worktree-task.md
-! exists TUCK.md
+! exists board.md
 
 exec tuck$exe list backlog --json
 json

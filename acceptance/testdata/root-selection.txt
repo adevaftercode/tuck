@@ -5,7 +5,7 @@ exec tuck$exe --root 'board one' init --json
 json
 stdout '"initialized": true'
 exec tuck$exe add 'First selected board' --root 'board one'
-exists 'board one/TUCK.md' 'board one/tasks/backlog/001-first-selected-board.md'
+exists 'board one/board.md' 'board one/tasks/backlog/001-first-selected-board.md'
 
 exec tuck$exe init --root 'board two' --json
 json
@@ -23,4 +23,4 @@ json
 exec tuck$exe add 'Fourth selected board' --root=board-four
 exists board-four/tasks/backlog/001-fourth-selected-board.md
 
-! exists tasks TUCK.md
+! exists tasks board.md

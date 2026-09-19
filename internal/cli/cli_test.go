@@ -114,7 +114,7 @@ func TestSyncWarnsAndLeavesProjectionUntouchedForMalformedTask(t *testing.T) {
 	root := t.TempDir()
 	requireSuccess(t, root, "init")
 	requireSuccess(t, root, "add", "A valid task")
-	projectionPath := filepath.Join(root, "TUCK.md")
+	projectionPath := filepath.Join(root, "board.md")
 	before, err := os.ReadFile(projectionPath)
 	if err != nil {
 		t.Fatal(err)
@@ -145,7 +145,7 @@ func TestSyncWarnsAndLeavesProjectionUntouchedForMalformedTask(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(before, after) {
-		t.Fatalf("sync changed TUCK.md despite malformed task")
+		t.Fatalf("sync changed board.md despite malformed task")
 	}
 	code, stdout, _ := runCLI(t, root, "check")
 	if code == 0 || !strings.Contains(stdout, "task must begin with YAML front matter") {
@@ -236,7 +236,7 @@ func TestCheckReportsPendingTransactionWithoutRecoveringIt(t *testing.T) {
 func TestCheckReportsStaleProjectionWithoutChangingIt(t *testing.T) {
 	root := t.TempDir()
 	requireSuccess(t, root, "init")
-	projectionPath := filepath.Join(root, "TUCK.md")
+	projectionPath := filepath.Join(root, "board.md")
 	if err := os.WriteFile(projectionPath, []byte("manual edit\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestCheckReportsStaleProjectionWithoutChangingIt(t *testing.T) {
 	}
 	content, err := os.ReadFile(projectionPath)
 	if err != nil || string(content) != "manual edit\n" {
-		t.Fatalf("check changed TUCK.md: %q, %v", content, err)
+		t.Fatalf("check changed board.md: %q, %v", content, err)
 	}
 }
 

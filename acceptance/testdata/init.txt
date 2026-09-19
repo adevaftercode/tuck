@@ -4,8 +4,8 @@ json
 stdout '"initialized": true'
 stdout '"projection_updated": true'
 ! stderr .+
-exists TUCK.md tasks tasks/backlog tasks/todo tasks/doing tasks/done
-grep '^# Tuck$' TUCK.md
+exists board.md tasks tasks/backlog tasks/todo tasks/doing tasks/done
+grep '^# Tuck$' board.md
 
 exec tuck$exe check --json
 json

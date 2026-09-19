@@ -305,14 +305,14 @@ func initialize(root string, stdout io.Writer, jsonOutput bool) error {
 	}
 	projectionUpdated := false
 	if stale {
-		if _, err := os.Stat(filepath.Join(root, "TUCK.md")); err == nil {
+		if _, err := os.Stat(filepath.Join(root, "board.md")); err == nil {
 			if jsonOutput {
 				return writeJSON(stdout, map[string]any{"initialized": true, "root": root, "projection_updated": false})
 			}
-			fmt.Fprintln(stdout, "Initialized board; existing TUCK.md was left unchanged. Run `tuck sync` to regenerate it.")
+			fmt.Fprintln(stdout, "Initialized board; existing board.md was left unchanged. Run `tuck sync` to regenerate it.")
 			return nil
 		}
-		if err := store.Commit(root, []store.Change{{Path: "TUCK.md", Data: b.Projection()}}); err != nil {
+		if err := store.Commit(root, []store.Change{{Path: "board.md", Data: b.Projection()}}); err != nil {
 			return err
 		}
 		projectionUpdated = true
@@ -382,15 +382,15 @@ func syncBoard(b *board.Board, stdout, stderr io.Writer, jsonOutput bool) error 
 				return err
 			}
 		}
-		return errors.New("sync aborted; TUCK.md was left untouched")
+		return errors.New("sync aborted; board.md was left untouched")
 	}
-	if err := store.Commit(b.Root, []store.Change{{Path: "TUCK.md", Data: b.Projection()}}); err != nil {
+	if err := store.Commit(b.Root, []store.Change{{Path: "board.md", Data: b.Projection()}}); err != nil {
 		return err
 	}
 	if jsonOutput {
 		return writeJSON(stdout, map[string]any{"synced": true, "task_count": len(b.Tasks)})
 	}
-	fmt.Fprintln(stdout, "Synchronized TUCK.md.")
+	fmt.Fprintln(stdout, "Synchronized board.md.")
 	return nil
 }
 

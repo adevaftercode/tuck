@@ -410,12 +410,12 @@ func safeRelative(path string) (string, error) {
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || clean != normalized {
 		return "", fmt.Errorf("transaction path %q is not a canonical board-relative path", path)
 	}
-	if clean == "TUCK.md" {
+	if clean == "board.md" {
 		return clean, nil
 	}
 	parts := strings.Split(clean, "/")
 	if len(parts) != 3 || parts[0] != "tasks" || !validTaskState(parts[1]) || parts[2] == "." || filepath.Ext(parts[2]) != ".md" {
-		return "", fmt.Errorf("transaction path %q must name TUCK.md or a task Markdown file", path)
+		return "", fmt.Errorf("transaction path %q must name board.md or a task Markdown file", path)
 	}
 	return clean, nil
 }

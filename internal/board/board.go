@@ -181,7 +181,7 @@ func (b *Board) ProjectionIssue() (Issue, bool, error) {
 		return Issue{}, false, err
 	}
 	if stale {
-		return Issue{Path: "TUCK.md", Message: "projection is stale; run tuck sync"}, true, nil
+		return Issue{Path: "board.md", Message: "projection is stale; run tuck sync"}, true, nil
 	}
 	return Issue{}, false, nil
 }
@@ -292,7 +292,7 @@ func oneLine(value string) string {
 }
 
 func IsProjectionStale(root string, projection []byte) (bool, error) {
-	current, err := os.ReadFile(filepath.Join(root, "TUCK.md"))
+	current, err := os.ReadFile(filepath.Join(root, "board.md"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return true, nil
@@ -321,17 +321,17 @@ func (b *Board) Changes(includeProjection bool) ([]store.Change, error) {
 		changes[t.Path] = store.Change{Path: t.Path, Data: encoded}
 	}
 	if includeProjection {
-		changes["TUCK.md"] = store.Change{Path: "TUCK.md", Data: b.Projection()}
+		changes["board.md"] = store.Change{Path: "board.md", Data: b.Projection()}
 	}
 	result := make([]store.Change, 0, len(changes))
 	for _, change := range changes {
 		result = append(result, change)
 	}
 	sort.Slice(result, func(i, j int) bool {
-		if result[i].Path == "TUCK.md" {
+		if result[i].Path == "board.md" {
 			return false
 		}
-		if result[j].Path == "TUCK.md" {
+		if result[j].Path == "board.md" {
 			return true
 		}
 		return result[i].Path < result[j].Path

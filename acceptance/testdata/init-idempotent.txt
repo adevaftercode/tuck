@@ -1,13 +1,13 @@
 # Init creates missing board files, preserves existing projection, and is repeatable.
 exec tuck$exe init
-stdout 'existing TUCK.md was left unchanged'
-cmp TUCK.md initial-projection.md
+stdout 'existing board.md was left unchanged'
+cmp board.md initial-projection.md
 exists tasks/backlog tasks/todo tasks/doing tasks/done
 
 exec tuck$exe sync
-stdout 'Synchronized TUCK.md'
-grep '^# Tuck$' TUCK.md
-! cmp TUCK.md initial-projection.md
+stdout 'Synchronized board.md'
+grep '^# Tuck$' board.md
+! cmp board.md initial-projection.md
 
 exec tuck$exe init --json
 json
@@ -27,7 +27,7 @@ exec tuck$exe list todo --json
 json
 stdout '"title": "Keep existing task"'
 
--- TUCK.md --
+-- board.md --
 # A manually maintained projection
 -- initial-projection.md --
 # A manually maintained projection

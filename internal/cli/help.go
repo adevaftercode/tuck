@@ -23,7 +23,7 @@ Change:
 
 Maintain:
   init                     Initialize a board [--json]
-  sync                     Regenerate TUCK.md [--json]
+  sync                     Regenerate board.md [--json]
   check                    Validate board structure [--json]
 
 Use "tuck <command> --help" for command options. Plain output is compact;
@@ -34,7 +34,7 @@ var commandHelp = map[string]string{
 	"init": `Initialize an empty Tuck board.
 
 Usage: tuck init [--root PATH] [--json]
-Creates TUCK.md and tasks/{backlog,todo,doing,done} without overwriting existing records.
+Creates board.md and tasks/{backlog,todo,doing,done} without overwriting existing records.
 `,
 	"list": `List tasks in board order.
 
@@ -95,12 +95,12 @@ Usage: tuck meta get <task> [key] [--json]
 Values are strings, numbers, booleans, null, or flat arrays of those values.
 Tuck's id, number, order, created_at, and completed_at fields are reserved.
 `,
-	"sync": `Regenerate the TUCK.md projection from valid task records.
+	"sync": `Regenerate the board.md projection from valid task records.
 
 Usage: tuck sync [--json]
-Malformed records produce warnings and leave TUCK.md unchanged.
+Malformed records produce warnings and leave board.md unchanged.
 `,
-	"check": `Validate task records and the current TUCK.md projection.
+	"check": `Validate task records and the current board.md projection.
 
 Usage: tuck check [--json]
 Does not modify board files.

@@ -59,8 +59,8 @@ stdout 'Todo 01'
 ! stdout 'Backlog'
 
 exec tuck$exe sync
-stdout 'Synchronized TUCK.md'
-grep -count=10 '^- [0-9][0-9][0-9] Todo ' TUCK.md
-grep -count=10 '^- [0-9][0-9][0-9] Backlog ' TUCK.md
-grep -count=10 '^- [0-9][0-9][0-9] Done ' TUCK.md
-grep 'Doing item' TUCK.md
+stdout 'Synchronized board.md'
+grep -count=10 '^- [0-9][0-9][0-9] Todo ' board.md
+grep -count=10 '^- [0-9][0-9][0-9] Backlog ' board.md
+grep -count=10 '^- [0-9][0-9][0-9] Done ' board.md
+grep 'Doing item' board.md
