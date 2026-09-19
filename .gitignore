@@ -1,0 +1,2 @@
+# Kept only while a multi-file Weft operation is being committed or recovered.
+/.weft-txn/
