@@ -1,0 +1,27 @@
+# Recent lists completed work newest-first and honors its limit.
+exec weft$exe init
+exec weft$exe recent --json
+json
+stdout '"tasks": '
+! stdout '"number":'
+
+exec weft$exe add 'Earlier completion' --state todo
+exec weft$exe done 001
+exec weft$exe add 'Later completion' --state todo
+exec weft$exe done 002
+
+exec weft$exe recent --json
+json
+stdout '(?s)"number": "002".*"number": "001"'
+exec weft$exe recent --limit=1 --json
+json
+stdout '"number": "002"'
+! stdout '"number": "001"'
+exec weft$exe recent
+stdout '002'
+stdout 'Later completion'
+
+! exec weft$exe recent extra
+stderr 'recent takes no positional arguments'
+! exec weft$exe recent --recent
+stderr 'weft recent: --recent is not supported'

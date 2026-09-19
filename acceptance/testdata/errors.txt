@@ -1,0 +1,44 @@
+# Usage errors, missing tasks, and forbidden operations fail with useful errors.
+! exec weft$exe check
+stdout 'missing tasks directory'
+
+exec weft$exe init
+exec weft$exe show --help
+stdout 'Show a task'
+! stderr .+
+
+exitcode 2 list --unknown-option
+stderr 'weft list: unknown option "--unknown-option"'
+! stdout .+
+
+! exec weft$exe add 'Invalid state' --state someday
+stderr 'weft add: invalid state "someday"'
+
+exitcode 1 show 999
+stderr 'weft show: task 999 not found'
+! exec weft$exe start 999
+stderr 'weft start: task 999 not found'
+! exec weft$exe done 999
+stderr 'weft done: task 999 not found'
+! exec weft$exe reopen 999
+stderr 'weft reopen: task 999 not found'
+! exec weft$exe move 999 todo
+stderr 'weft move: task 999 not found'
+! exec weft$exe rename 999 'Missing task'
+stderr 'weft rename: task 999 not found'
+! exec weft$exe reorder 999 --first
+stderr 'weft reorder: task 999 not found'
+! exec weft$exe meta get 999
+stderr 'weft meta: task 999 not found'
+
+exec weft$exe add 'Completed item' --state todo
+exec weft$exe done 001
+! exec weft$exe reorder 001 --first
+stderr 'done tasks keep completion order and cannot be reordered'
+
+exec weft$exe add 'Active item' --state todo
+! exec weft$exe reopen 002
+stderr 'cannot reopen 002 from todo'
+
+! exec weft$exe meta set 001 id '"custom"'
+stderr 'reserved'

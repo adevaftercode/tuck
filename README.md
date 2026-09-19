@@ -104,8 +104,26 @@ interrupted update, the next command finishes recovery before reading the board.
 
 ```sh
 go test ./...
+go test ./acceptance
 go vet ./...
 go build ./cmd/weft
 ```
+
+The CLI acceptance suite builds the real `weft` executable once and runs each
+scenario in an isolated temporary directory. To run one scenario while
+debugging, select its testscript subtest by filename, for example:
+
+```sh
+go test ./acceptance -run 'TestAcceptance/lifecycle'
+```
+
+The scenarios cover top-level and command help, root selection, init/sync/check,
+state transitions, listing/search/recency, ordering, metadata, JSON records,
+invalid boards, usage errors, and exit statuses. A harness command parses JSON
+stdout, while another asserts the exact status for representative usage and
+runtime failures. Each `exec weft` call starts the built executable as a child
+process. The suite uses testscript's portable process and filesystem commands
+and supports Linux, macOS, and Windows with Go installed.
+The linked-worktree scenario skips when Git is not available on `PATH`.
 
 GitHub Actions runs tests and builds on Linux, Windows, and macOS.

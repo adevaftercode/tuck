@@ -24,16 +24,16 @@ type usageError struct{ message string }
 func (e usageError) Error() string { return e.message }
 
 type options struct {
-	root    string
-	json    bool
-	state   string
-	limit   int
-	recent  bool
-	meta    []string
-	first   bool
-	before  string
-	after   string
-	pos     []string
+	root   string
+	json   bool
+	state  string
+	limit  int
+	recent bool
+	meta   []string
+	first  bool
+	before string
+	after  string
+	pos    []string
 }
 
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -583,8 +583,8 @@ func commandFind(opts options, b *board.Board, stdout io.Writer) error {
 		return usageError{message: err.Error()}
 	}
 	type match struct {
-		task  *task.Task
-		rank  int
+		task *task.Task
+		rank int
 	}
 	var matches []match
 	for _, t := range b.Tasks {
@@ -996,6 +996,9 @@ func commandMeta(opts options, b *board.Board, stdout io.Writer) error {
 	case "unset":
 		if len(opts.pos) != 3 {
 			return usageError{message: "meta unset requires a task and key"}
+		}
+		if task.IsReserved(opts.pos[2]) {
+			return usageError{message: fmt.Sprintf("metadata key %q is reserved by Weft", opts.pos[2])}
 		}
 		if _, ok := t.Metadata[opts.pos[2]]; !ok {
 			if opts.json {

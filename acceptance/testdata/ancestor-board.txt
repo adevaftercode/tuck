@@ -1,0 +1,12 @@
+# Commands from a nested working directory use the nearest ancestor board.
+exec weft$exe init
+mkdir nested/child
+cd nested/child
+exec weft$exe add 'Found from child directory'
+stdout 'Created 001 Found from child directory'
+cd ../..
+exists tasks/backlog/001-found-from-child-directory.md
+! exists nested/child/tasks
+exec weft$exe show 001 --json
+json
+stdout '"title": "Found from child directory"'

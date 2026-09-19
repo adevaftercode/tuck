@@ -1,0 +1,38 @@
+# Top-level help, version, errors, and command help are available without a board.
+exec weft$exe
+stdout 'weft — deterministic product-board operations'
+! stderr .+
+
+exec weft$exe -h
+stdout 'Usage:'
+exec weft$exe --help
+stdout 'Maintain:'
+exec weft$exe help
+stdout 'Use "weft <command> --help"'
+
+exec weft$exe version
+stdout 'weft dev'
+exec weft$exe --version
+stdout 'weft dev'
+
+! exec weft$exe unknown-command
+stderr 'weft: unknown command "unknown-command"'
+! stdout .+
+
+! exec weft$exe --root
+stderr 'weft: --root requires a path and command'
+! exec weft$exe --root=somewhere
+stderr 'weft: --root requires a command'
+! exec weft$exe init --root
+stderr 'weft init: --root requires a path'
+! exec weft$exe init --root=
+stderr 'weft init: --root requires a path'
+
+exec weft$exe list --help
+stdout 'List tasks in board order'
+exec weft$exe add -h
+stdout 'Create a task with a stable number and ID'
+exec weft$exe find --help
+stdout 'Find task candidates'
+exec weft$exe meta --help
+stdout 'Read or change flat user-defined task metadata'

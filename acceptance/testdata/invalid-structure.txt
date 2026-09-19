@@ -1,0 +1,51 @@
+# check validates unexpected task entries, duplicate IDs, and stale projections.
+exec weft$exe init
+mkdir tasks/unexpected
+cp first-task.md tasks/todo/001-first.md
+cp duplicate-task.md tasks/todo/002-second.md
+cp order-gap-task.md tasks/todo/003-third.md
+
+exitcode 1 check --json
+json
+stdout '"ok": false'
+stdout '"task_count": 3'
+stdout 'unexpected entry in tasks directory'
+stdout 'duplicate task id'
+stdout 'duplicate task number'
+stdout 'filename number must match front matter number 001'
+stdout 'todo order must be contiguous starting at 1'
+stdout 'projection is stale; run weft sync'
+stderr 'found 6 board issue'
+
+cp WEFT.md projection-before-sync.md
+exitcode 1 sync --json
+json
+stdout '"synced": false'
+stderr 'warning: tasks/unexpected'
+stderr 'duplicate task id'
+cmp WEFT.md projection-before-sync.md
+
+-- first-task.md --
+---
+id: wft_01K5Z4KJ6M2V7D9X3R8T5Q1P0A
+number: 1
+order: 1
+created_at: "2026-09-19T12:30:00Z"
+---
+# First valid task
+-- duplicate-task.md --
+---
+id: wft_01K5Z4KJ6M2V7D9X3R8T5Q1P0A
+number: 1
+order: 2
+created_at: "2026-09-19T12:31:00Z"
+---
+# Second task with repeated ID
+-- order-gap-task.md --
+---
+id: wft_01K5Z4KJ6M2V7D9X3R8T5Q1P0B
+number: 3
+order: 4
+created_at: "2026-09-19T12:32:00Z"
+---
+# Third task with an order gap

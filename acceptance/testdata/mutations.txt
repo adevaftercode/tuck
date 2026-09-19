@@ -1,0 +1,78 @@
+# Exercise every state through add, move, start, done, reopen, and rename.
+exec weft$exe init
+
+exec weft$exe add 'Default state title'
+stdout 'Created 001 Default state title'
+exists tasks/backlog/001-default-state-title.md
+
+exec weft$exe add title with several words --state=todo --json
+json
+stdout '"number": "002"'
+stdout '"title": "title with several words"'
+exists tasks/todo/002-title-with-several-words.md
+
+exec weft$exe add --json -- '--literal title'
+json
+stdout '"title": "--literal title"'
+
+exec weft$exe add 'Created complete' --state done --json
+json
+stdout '"state": "done"'
+stdout '"completed_at":'
+exists tasks/done/004-created-complete.md
+
+exec weft$exe move 001 todo --json
+json
+stdout '"state": "todo"'
+! exists tasks/backlog/001-default-state-title.md
+exists tasks/todo/001-default-state-title.md
+exec weft$exe move 001 todo
+stdout 'already todo'
+
+exec weft$exe start 001
+stdout '001 Default state title -> doing'
+exec weft$exe start 001
+stdout 'already doing'
+exists tasks/doing/001-default-state-title.md
+
+exec weft$exe done 001 --json
+json
+stdout '"state": "done"'
+exec weft$exe done 001
+stdout 'already done'
+cp tasks/done/001-default-state-title.md completed-once.md
+exec weft$exe done 001
+cmp tasks/done/001-default-state-title.md completed-once.md
+
+exec weft$exe start 001 --json
+json
+stdout '"state": "doing"'
+! stdout '"completed_at":'
+exec weft$exe done 001
+exec weft$exe reopen 001
+stdout '001 reopened in doing'
+exec weft$exe reopen 001
+stdout 'already doing'
+! exists tasks/done/001-default-state-title.md
+exists tasks/doing/001-default-state-title.md
+
+exec weft$exe move 001 backlog
+exists tasks/backlog/001-default-state-title.md
+exec weft$exe move 001 done
+exists tasks/done/001-default-state-title.md
+exec weft$exe move 001 doing
+exists tasks/doing/001-default-state-title.md
+
+exec weft$exe rename 001 'Renamed work item' --json
+json
+stdout '"title": "Renamed work item"'
+exists tasks/doing/001-renamed-work-item.md
+exec weft$exe rename 001 'Renamed work item'
+stdout 'Renamed 001 Renamed work item'
+exec weft$exe show 001
+stdout '^# Renamed work item$'
+
+exec weft$exe check --json
+json
+stdout '"ok": true'
+stdout '"task_count": 4'

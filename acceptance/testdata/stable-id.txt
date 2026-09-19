@@ -1,0 +1,19 @@
+# Full task IDs returned by JSON can be used to address the task in a new process.
+exec weft$exe init
+exec weft$exe add 'Stable handle' --state todo --json
+json
+capture-task-id
+stdout '"id": "wft_[0-7][0-9A-HJKMNP-TV-Z]{25}"'
+
+exec weft$exe show $TASK_ID --json
+json
+stdout '"title": "Stable handle"'
+stdout '"number": "001"'
+
+exec weft$exe rename $TASK_ID 'Addressed by ID' --json
+json
+stdout '"title": "Addressed by ID"'
+exists tasks/todo/001-addressed-by-id.md
+
+! exec weft$exe show 'wft_invalid'
+stderr 'use its number or ID'

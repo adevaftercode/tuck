@@ -1,0 +1,63 @@
+# Create tasks, inspect JSON, and exercise the task lifecycle.
+exec weft$exe init
+stdout 'Initialized Weft board'
+
+exec weft$exe add 'Manage product images' --state todo --json
+json
+stdout '"title": "Manage product images"'
+stdout '"state": "todo"'
+exists tasks/todo/001-manage-product-images.md
+
+exec weft$exe add 'Document image formats' --state todo --json
+json
+stdout '"number": "002"'
+
+exec weft$exe list todo --json
+json
+stdout '"title": "Manage product images"'
+stdout '"title": "Document image formats"'
+
+exec weft$exe show 001 --json
+json
+stdout '"title": "Manage product images"'
+stdout '"body": "# Manage product images'
+
+exec weft$exe rename 001 'Organize product images' --json
+json
+stdout '"title": "Organize product images"'
+exists tasks/todo/001-organize-product-images.md
+! exists tasks/todo/001-manage-product-images.md
+
+exec weft$exe move 001 doing --json
+json
+stdout '"state": "doing"'
+exists tasks/doing/001-organize-product-images.md
+! exists tasks/todo/001-organize-product-images.md
+
+exec weft$exe start 002 --json
+json
+stdout '"state": "doing"'
+exists tasks/doing/002-document-image-formats.md
+
+exec weft$exe done 001 --json
+json
+stdout '"state": "done"'
+stdout '"completed_at":'
+exists tasks/done/001-organize-product-images.md
+
+exec weft$exe recent --json
+json
+stdout '"number": "001"'
+stdout '"completed_at":'
+
+exec weft$exe reopen 001 --json
+json
+stdout '"state": "doing"'
+! stdout '"completed_at":'
+exists tasks/doing/001-organize-product-images.md
+! exists tasks/done/001-organize-product-images.md
+
+exec weft$exe check --json
+json
+stdout '"ok": true'
+stdout '"task_count": 2'

@@ -1,0 +1,16 @@
+# Separate CLI processes can add tasks concurrently without losing either record.
+exec weft$exe init
+exec weft$exe add 'Concurrent writer one' &
+exec weft$exe add 'Concurrent writer two' &
+wait
+stdout 'Concurrent writer one'
+stdout 'Concurrent writer two'
+
+exec weft$exe list backlog --json
+json
+stdout '"title": "Concurrent writer one"'
+stdout '"title": "Concurrent writer two"'
+exec weft$exe check --json
+json
+stdout '"ok": true'
+stdout '"task_count": 2'
