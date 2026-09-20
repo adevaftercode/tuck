@@ -3,12 +3,17 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
+
+	"tuck/internal/task"
 )
 
 func runCLI(t *testing.T, root string, args ...string) (int, string, string) {
@@ -150,6 +155,38 @@ func TestSyncWarnsAndLeavesProjectionUntouchedForMalformedTask(t *testing.T) {
 	code, stdout, _ := runCLI(t, root, "check")
 	if code == 0 || !strings.Contains(stdout, "task must begin with YAML front matter") {
 		t.Fatalf("check failed to report malformed task: code=%d stdout=%q", code, stdout)
+	}
+}
+
+func TestShowDoesNotEmitTaskSymlinkContents(t *testing.T) {
+	root := t.TempDir()
+	requireSuccess(t, root, "init")
+	external := filepath.Join(t.TempDir(), "victim.md")
+	record := task.New("wft_00000000000000000000000000", 1, 0, "Secret", task.Backlog, time.Now().UTC(), nil)
+	record.SetPath(task.Backlog, record.Title)
+	record.Body = "DO_NOT_DISCLOSE_EXTERNAL_CONTENT"
+	data, err := record.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(external, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	taskPath := filepath.Join(root, "tasks", "backlog", "001-secret.md")
+	if err := os.Symlink(external, taskPath); err != nil {
+		if os.IsPermission(err) || errors.Is(err, syscall.Errno(1314)) {
+			t.Skipf("platform does not permit creating symlinks: %v", err)
+		}
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"show", "001"}, {"show", "001", "--json"}} {
+		code, stdout, stderr := runCLI(t, root, args...)
+		if code == 0 || !strings.Contains(stderr, "regular file") {
+			t.Fatalf("tuck %s should report the symlink as invalid: code=%d stderr=%q", strings.Join(args, " "), code, stderr)
+		}
+		if strings.Contains(stdout, record.Body) || strings.Contains(stderr, record.Body) {
+			t.Fatalf("tuck %s emitted external task contents", strings.Join(args, " "))
+		}
 	}
 }
 

@@ -1,11 +1,13 @@
 package store
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	pathpkg "path"
@@ -23,7 +25,7 @@ type Change struct {
 }
 
 type transactionManifest struct {
-	Version int                  `json:"version"`
+	Version int                 `json:"version"`
 	Changes []transactionChange `json:"changes"`
 }
 
@@ -39,92 +41,124 @@ type transactionChange struct {
 }
 
 func Recover(root string) error {
-	journal := filepath.Join(root, transactionDirectory)
-	info, err := os.Lstat(journal)
+	boardRoot, err := os.OpenRoot(root)
+	if err != nil {
+		return err
+	}
+	defer boardRoot.Close()
+
+	journalInfo, err := boardRoot.Lstat(transactionDirectory)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	if !info.IsDir() {
-		return fmt.Errorf("transaction recovery conflict: %s is not a directory", journal)
+	if !realDirectory(journalInfo) {
+		return fmt.Errorf("transaction recovery conflict: %s is not a real directory", transactionDirectory)
 	}
-	manifestPath := filepath.Join(journal, "manifest.json")
-	manifestInfo, err := os.Lstat(manifestPath)
-	if errors.Is(err, fs.ErrNotExist) {
-		// A manifest is installed only after all before/after images are durable;
-		// no board file is changed before that point.
-		return cleanupJournal(root, journal)
+	journalRoot, err := openCheckedDirectory(boardRoot, transactionDirectory, journalInfo)
+	if err != nil {
+		return fmt.Errorf("transaction recovery conflict: %w", err)
+	}
+	cleanup, recoverErr := recoverJournal(boardRoot, journalRoot)
+	closeErr := journalRoot.Close()
+	if recoverErr != nil {
+		return recoverErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if cleanup {
+		return cleanupJournal(boardRoot)
+	}
+	return nil
+}
+
+func recoverJournal(boardRoot, journalRoot *os.Root) (bool, error) {
+	encoded, manifestExists, _, err := readRegular(journalRoot, "manifest.json")
+	if errors.Is(err, fs.ErrNotExist) || err == nil && !manifestExists {
+		// No board file is changed until the manifest is installed.
+		return true, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
-	if !manifestInfo.Mode().IsRegular() {
-		return fmt.Errorf("transaction recovery conflict: manifest is not a regular file")
-	}
-	encoded, err := os.ReadFile(manifestPath)
-	if err != nil {
-		return err
-	}
-	if markerInfo, err := os.Lstat(filepath.Join(journal, "COMMITTED")); err == nil {
-		if !markerInfo.Mode().IsRegular() {
-			return fmt.Errorf("transaction recovery conflict: committed marker is not a regular file")
-		}
-		return cleanupJournal(root, journal)
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return err
+	_, markerExists, _, err := readRegular(journalRoot, "COMMITTED")
+	if err == nil && markerExists {
+		return true, nil
+	} else if err != nil {
+		return false, err
 	}
 	var manifest transactionManifest
 	if err := json.Unmarshal(encoded, &manifest); err != nil || manifest.Version != 1 {
-		return fmt.Errorf("transaction recovery conflict: invalid manifest in %s", journal)
+		return false, fmt.Errorf("transaction recovery conflict: invalid manifest in %s", transactionDirectory)
 	}
 	if err := validateManifest(manifest); err != nil {
-		return fmt.Errorf("transaction recovery conflict: %w", err)
+		return false, fmt.Errorf("transaction recovery conflict: %w", err)
 	}
-	imagesInfo, err := os.Lstat(filepath.Join(journal, "images"))
-	if err != nil || !imagesInfo.IsDir() || imagesInfo.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("transaction recovery conflict: staged images directory is missing or invalid")
+	imagesInfo, err := journalRoot.Lstat("images")
+	if err != nil || !realDirectory(imagesInfo) {
+		return false, fmt.Errorf("transaction recovery conflict: staged images directory is missing or invalid")
 	}
+	imagesRoot, err := openCheckedDirectory(journalRoot, "images", imagesInfo)
+	if err != nil {
+		return false, fmt.Errorf("transaction recovery conflict: staged images directory is missing or invalid: %w", err)
+	}
+	defer imagesRoot.Close()
+
 	for _, change := range manifest.Changes {
-		if err := applyJournalChange(root, journal, change); err != nil {
-			return fmt.Errorf("transaction recovery conflict for %s: %w", change.Path, err)
+		if err := applyJournalChange(boardRoot, imagesRoot, change); err != nil {
+			return false, fmt.Errorf("transaction recovery conflict for %s: %w", change.Path, err)
 		}
 	}
 	cleanedDirectories := make(map[string]bool)
 	for _, change := range manifest.Changes {
-		target := filepath.Join(root, filepath.FromSlash(change.Path))
-		directory := filepath.Dir(target)
-		if cleanedDirectories[directory] {
+		parent, _, closeParent, err := openTarget(boardRoot, change.Path, false)
+		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
-		if err := removeWriteTemps(directory); err != nil {
-			return fmt.Errorf("clean interrupted writes in %s: %w", directory, err)
+		if err != nil {
+			return false, fmt.Errorf("clean interrupted writes in %s: %w", change.Path, err)
 		}
-		cleanedDirectories[directory] = true
+		key := "."
+		if slash := strings.LastIndex(change.Path, "/"); slash >= 0 {
+			key = change.Path[:slash]
+		}
+		if cleanedDirectories[key] {
+			closeParent()
+			continue
+		}
+		if err := removeWriteTemps(parent); err != nil {
+			closeParent()
+			return false, fmt.Errorf("clean interrupted writes in %s: %w", key, err)
+		}
+		closeParent()
+		cleanedDirectories[key] = true
 	}
-	marker := filepath.Join(journal, "COMMITTED")
-	if err := writeSynced(marker, []byte("committed\n"), 0o600); err != nil {
-		return err
+	if err := writeSynced(journalRoot, "COMMITTED", []byte("committed\n"), 0o600); err != nil {
+		return false, err
 	}
-	if err := syncDirectory(journal); err != nil {
-		return err
+	if err := syncRootDirectory(journalRoot); err != nil {
+		return false, err
 	}
-	return cleanupJournal(root, journal)
+	return true, nil
 }
 
 // HasPendingRecovery lets check report an interrupted transaction without
 // changing the board. All other commands recover while holding the board lock.
 func HasPendingRecovery(root string) (bool, error) {
-	info, err := os.Lstat(filepath.Join(root, transactionDirectory))
+	boardRoot, err := os.OpenRoot(root)
+	if err != nil {
+		return false, err
+	}
+	defer boardRoot.Close()
+	_, err = boardRoot.Lstat(transactionDirectory)
 	if errors.Is(err, fs.ErrNotExist) {
 		return false, nil
 	}
 	if err != nil {
 		return false, err
-	}
-	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return true, nil
 	}
 	return true, nil
 }
@@ -133,140 +167,185 @@ func Commit(root string, changes []Change) error {
 	if len(changes) == 0 {
 		return nil
 	}
+	changes = append([]Change(nil), changes...)
 	if err := Recover(root); err != nil {
 		return err
 	}
 	seen := make(map[string]bool, len(changes))
-	for _, change := range changes {
-		rel, err := safeRelative(change.Path)
+	for i := range changes {
+		rel, err := safeRelative(changes[i].Path)
 		if err != nil {
 			return err
 		}
-		change.Path = rel
+		changes[i].Path = rel
 		if seen[rel] {
 			return fmt.Errorf("transaction contains duplicate path %q", rel)
 		}
 		seen[rel] = true
-		if err := checkSafeParents(root, rel); err != nil {
-			return err
-		}
 	}
-
-	journal := filepath.Join(root, transactionDirectory)
-	if err := os.Mkdir(journal, 0o700); err != nil {
-		return fmt.Errorf("create transaction journal: %w", err)
-	}
-	staged := filepath.Join(journal, "images")
-	if err := os.Mkdir(staged, 0o700); err != nil {
-		_ = os.RemoveAll(journal)
-		return err
-	}
-	manifest := transactionManifest{Version: 1, Changes: make([]transactionChange, 0, len(changes))}
-	for i, change := range changes {
-		rel, _ := safeRelative(change.Path)
-		target := filepath.Join(root, filepath.FromSlash(rel))
-		entry := transactionChange{Path: rel, AfterExists: !change.Delete}
-		if info, err := os.Lstat(target); err == nil {
-			if !info.Mode().IsRegular() {
-				_ = os.RemoveAll(journal)
-				return fmt.Errorf("refusing to replace non-regular file %s", rel)
-			}
-			before, err := os.ReadFile(target)
-			if err != nil {
-				_ = os.RemoveAll(journal)
-				return err
-			}
-			entry.BeforeExists = true
-			entry.BeforeHash = hash(before)
-			entry.BeforeMode = uint32(info.Mode().Perm())
-			entry.BeforeFile = fmt.Sprintf("before-%06d", i)
-			if err := writeSynced(filepath.Join(staged, entry.BeforeFile), before, 0o600); err != nil {
-				_ = os.RemoveAll(journal)
-				return err
-			}
-		} else if !errors.Is(err, fs.ErrNotExist) {
-			_ = os.RemoveAll(journal)
-			return err
-		}
-		if !change.Delete {
-			entry.AfterHash = hash(change.Data)
-			entry.AfterFile = fmt.Sprintf("after-%06d", i)
-			if err := writeSynced(filepath.Join(staged, entry.AfterFile), change.Data, 0o600); err != nil {
-				_ = os.RemoveAll(journal)
-				return err
-			}
-		}
-		manifest.Changes = append(manifest.Changes, entry)
-	}
-	if err := syncDirectory(staged); err != nil {
-		_ = os.RemoveAll(journal)
-		return err
-	}
-	encoded, err := json.MarshalIndent(manifest, "", "  ")
+	boardRoot, err := os.OpenRoot(root)
 	if err != nil {
-		_ = os.RemoveAll(journal)
 		return err
 	}
-	manifestTemp := filepath.Join(journal, "manifest.tmp")
-	if err := writeSynced(manifestTemp, append(encoded, '\n'), 0o600); err != nil {
-		_ = os.RemoveAll(journal)
-		return err
-	}
-	if err := replaceFile(manifestTemp, filepath.Join(journal, "manifest.json")); err != nil {
-		_ = os.RemoveAll(journal)
-		return err
-	}
-	if err := syncDirectory(journal); err != nil {
-		_ = os.RemoveAll(journal)
-		return err
-	}
-	if err := syncDirectory(root); err != nil {
-		_ = os.RemoveAll(journal)
+	defer boardRoot.Close()
+	if err := prepareAndApply(boardRoot, changes); err != nil {
 		return err
 	}
 	return Recover(root)
 }
 
-func applyJournalChange(root, journal string, change transactionChange) error {
+func prepareAndApply(boardRoot *os.Root, changes []Change) (retErr error) {
+	if err := boardRoot.Mkdir(transactionDirectory, 0o700); err != nil {
+		return fmt.Errorf("create transaction journal: %w", err)
+	}
+	defer func() {
+		if retErr != nil {
+			if err := cleanupJournal(boardRoot); err != nil {
+				retErr = errors.Join(retErr, err)
+			}
+		}
+	}()
+
+	journalInfo, err := boardRoot.Lstat(transactionDirectory)
+	if err != nil || !realDirectory(journalInfo) {
+		return fmt.Errorf("create transaction journal: journal path is not a real directory")
+	}
+	journalRoot, err := openCheckedDirectory(boardRoot, transactionDirectory, journalInfo)
+	if err != nil {
+		return fmt.Errorf("create transaction journal: %w", err)
+	}
+	defer journalRoot.Close()
+	if err := journalRoot.Mkdir("images", 0o700); err != nil {
+		return err
+	}
+	imagesInfo, err := journalRoot.Lstat("images")
+	if err != nil || !realDirectory(imagesInfo) {
+		return fmt.Errorf("staged images path is not a real directory")
+	}
+	imagesRoot, err := openCheckedDirectory(journalRoot, "images", imagesInfo)
+	if err != nil {
+		return err
+	}
+	defer imagesRoot.Close()
+
+	manifest := transactionManifest{Version: 1, Changes: make([]transactionChange, 0, len(changes))}
+	for i, change := range changes {
+		entry := transactionChange{Path: change.Path, AfterExists: !change.Delete}
+		parent, name, closeParent, err := openTarget(boardRoot, change.Path, false)
+		if err == nil {
+			before, exists, mode, err := readRegular(parent, name)
+			closeParent()
+			if err != nil {
+				return err
+			}
+			if exists {
+				entry.BeforeExists = true
+				entry.BeforeHash = hash(before)
+				entry.BeforeMode = uint32(mode.Perm())
+				entry.BeforeFile = fmt.Sprintf("before-%06d", i)
+				if err := writeSynced(imagesRoot, entry.BeforeFile, before, 0o600); err != nil {
+					return err
+				}
+			}
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		if !change.Delete {
+			entry.AfterHash = hash(change.Data)
+			entry.AfterFile = fmt.Sprintf("after-%06d", i)
+			if err := writeSynced(imagesRoot, entry.AfterFile, change.Data, 0o600); err != nil {
+				return err
+			}
+		}
+		manifest.Changes = append(manifest.Changes, entry)
+	}
+	if err := syncRootDirectory(imagesRoot); err != nil {
+		return err
+	}
+	encoded, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := writeSynced(journalRoot, "manifest.tmp", append(encoded, '\n'), 0o600); err != nil {
+		return err
+	}
+	if err := journalRoot.Rename("manifest.tmp", "manifest.json"); err != nil {
+		return err
+	}
+	if err := syncRootDirectory(journalRoot); err != nil {
+		return err
+	}
+	return syncRootDirectory(boardRoot)
+}
+
+func applyJournalChange(boardRoot, imagesRoot *os.Root, change transactionChange) error {
 	rel, err := safeRelative(change.Path)
 	if err != nil {
 		return err
 	}
-	if err := checkSafeParents(root, rel); err != nil {
+	parent, name, closeParent, err := openTarget(boardRoot, rel, false)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	target := filepath.Join(root, filepath.FromSlash(rel))
-	current, currentExists, mode, err := readRegular(target)
-	if err != nil {
-		return err
+	var current []byte
+	var currentExists bool
+	var mode fs.FileMode
+	if err == nil {
+		current, currentExists, mode, err = readRegular(parent, name)
+		if err != nil {
+			closeParent()
+			return err
+		}
+	} else {
+		parent = nil
 	}
 	if matches(current, currentExists, change.AfterHash, change.AfterExists) {
+		if closeParent != nil {
+			closeParent()
+		}
 		return nil
 	}
 	if !matches(current, currentExists, change.BeforeHash, change.BeforeExists) {
+		if closeParent != nil {
+			closeParent()
+		}
 		return errors.New("current file matches neither the recorded old nor new content; leaving it untouched")
 	}
 	if !change.AfterExists {
 		if currentExists {
-			if err := os.Remove(target); err != nil {
-				return err
+			removeErr := parent.Remove(name)
+			if removeErr == nil {
+				removeErr = syncRootDirectory(parent)
 			}
-			return syncDirectory(filepath.Dir(target))
+			closeParent()
+			return removeErr
+		}
+		if closeParent != nil {
+			closeParent()
 		}
 		return nil
 	}
-	content, exists, _, err := readRegular(filepath.Join(journal, "images", change.AfterFile))
+	content, exists, _, err := readRegular(imagesRoot, change.AfterFile)
 	if err != nil {
+		if closeParent != nil {
+			closeParent()
+		}
 		return fmt.Errorf("read staged content: %w", err)
 	}
 	if !exists {
+		if closeParent != nil {
+			closeParent()
+		}
 		return errors.New("staged content is missing")
 	}
 	if hash(content) != change.AfterHash {
+		if closeParent != nil {
+			closeParent()
+		}
 		return errors.New("staged content hash does not match transaction manifest")
 	}
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return err
+	if closeParent != nil {
+		closeParent()
 	}
 	if mode == 0 {
 		mode = fs.FileMode(change.BeforeMode)
@@ -274,22 +353,104 @@ func applyJournalChange(root, journal string, change transactionChange) error {
 	if mode == 0 {
 		mode = 0o644
 	}
-	return writeAtomic(target, content, mode)
+	parent, name, closeParent, err = openTarget(boardRoot, rel, true)
+	if err != nil {
+		return err
+	}
+	defer closeParent()
+	return writeAtomic(parent, name, content, mode)
 }
 
-func readRegular(path string) ([]byte, bool, fs.FileMode, error) {
-	info, err := os.Lstat(path)
+func openTarget(boardRoot *os.Root, rel string, createParents bool) (*os.Root, string, func(), error) {
+	if rel == "board.md" {
+		return boardRoot, "board.md", func() {}, nil
+	}
+	parts := strings.Split(rel, "/")
+	if len(parts) != 3 || parts[0] != "tasks" {
+		return nil, "", nil, fmt.Errorf("invalid transaction path %q", rel)
+	}
+	tasksRoot, err := openOrCreateDirectory(boardRoot, parts[0], createParents)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	stateRoot, err := openOrCreateDirectory(tasksRoot, parts[1], createParents)
+	if err != nil {
+		_ = tasksRoot.Close()
+		return nil, "", nil, err
+	}
+	return stateRoot, parts[2], func() {
+		_ = stateRoot.Close()
+		_ = tasksRoot.Close()
+	}, nil
+}
+
+func openOrCreateDirectory(parent *os.Root, name string, create bool) (*os.Root, error) {
+	info, err := parent.Lstat(name)
+	if errors.Is(err, fs.ErrNotExist) && create {
+		if err := parent.Mkdir(name, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+			return nil, err
+		}
+		info, err = parent.Lstat(name)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !realDirectory(info) {
+		return nil, fmt.Errorf("refusing to traverse non-directory or symlink path %s", name)
+	}
+	return openCheckedDirectory(parent, name, info)
+}
+
+func openCheckedDirectory(parent *os.Root, name string, expected os.FileInfo) (*os.Root, error) {
+	child, err := parent.OpenRoot(name)
+	if err != nil {
+		return nil, err
+	}
+	directory, err := child.Open(".")
+	if err != nil {
+		_ = child.Close()
+		return nil, err
+	}
+	actual, statErr := directory.Stat()
+	closeErr := directory.Close()
+	if statErr != nil || closeErr != nil || !os.SameFile(expected, actual) {
+		_ = child.Close()
+		if statErr != nil {
+			return nil, statErr
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+		return nil, fmt.Errorf("directory changed while opening")
+	}
+	return child, nil
+}
+
+func readRegular(root *os.Root, name string) ([]byte, bool, fs.FileMode, error) {
+	info, err := root.Lstat(name)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, false, 0, nil
 	}
 	if err != nil {
 		return nil, false, 0, err
 	}
-	if !info.Mode().IsRegular() {
-		return nil, false, 0, fmt.Errorf("refusing to operate on non-regular file %s", path)
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, false, 0, fmt.Errorf("refusing to operate on non-regular file %s", name)
 	}
-	data, err := os.ReadFile(path)
-	return data, true, info.Mode().Perm(), err
+	file, err := root.Open(name)
+	if err != nil {
+		return nil, false, 0, err
+	}
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil {
+		return nil, false, 0, err
+	}
+	if !opened.Mode().IsRegular() || !os.SameFile(info, opened) {
+		return nil, false, 0, fmt.Errorf("refusing to operate on changed or non-regular file %s", name)
+	}
+	data, err := io.ReadAll(file)
+	return data, true, opened.Mode().Perm(), err
 }
 
 func matches(data []byte, exists bool, expected string, expectedExists bool) bool {
@@ -302,39 +463,31 @@ func matches(data []byte, exists bool, expected string, expectedExists bool) boo
 	return hash(data) == expected
 }
 
-func writeAtomic(destination string, data []byte, mode fs.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
-		return err
-	}
-	temp, err := os.CreateTemp(filepath.Dir(destination), ".tuck-write-*")
+func writeAtomic(parent *os.Root, destination string, data []byte, mode fs.FileMode) error {
+	temp, file, err := createTemp(parent, ".tuck-write-", mode)
 	if err != nil {
 		return err
 	}
-	tempPath := temp.Name()
-	defer os.Remove(tempPath)
-	if err := temp.Chmod(mode.Perm()); err != nil {
-		_ = temp.Close()
+	defer parent.Remove(temp)
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close()
 		return err
 	}
-	if _, err := temp.Write(data); err != nil {
-		_ = temp.Close()
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
 		return err
 	}
-	if err := temp.Sync(); err != nil {
-		_ = temp.Close()
+	if err := file.Close(); err != nil {
 		return err
 	}
-	if err := temp.Close(); err != nil {
+	if err := parent.Rename(temp, destination); err != nil {
 		return err
 	}
-	if err := replaceFile(tempPath, destination); err != nil {
-		return err
-	}
-	return syncDirectory(filepath.Dir(destination))
+	return syncRootDirectory(parent)
 }
 
-func writeSynced(path string, data []byte, mode fs.FileMode) error {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+func writeSynced(root *os.Root, name string, data []byte, mode fs.FileMode) error {
+	file, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 	if err != nil {
 		return err
 	}
@@ -349,55 +502,83 @@ func writeSynced(path string, data []byte, mode fs.FileMode) error {
 	return file.Close()
 }
 
-func cleanupJournal(root, journal string) error {
-	if err := os.RemoveAll(journal); err != nil {
-		return err
+func createTemp(root *os.Root, prefix string, mode fs.FileMode) (string, *os.File, error) {
+	for attempt := 0; attempt < 100; attempt++ {
+		var random [12]byte
+		if _, err := rand.Read(random[:]); err != nil {
+			return "", nil, err
+		}
+		name := prefix + hex.EncodeToString(random[:])
+		file, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode.Perm())
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", nil, err
+		}
+		if err := file.Chmod(mode.Perm()); err != nil {
+			_ = file.Close()
+			_ = root.Remove(name)
+			return "", nil, err
+		}
+		return name, file, nil
 	}
-	return syncDirectory(root)
+	return "", nil, fmt.Errorf("unable to create temporary file")
 }
 
-func removeWriteTemps(directory string) error {
-	entries, err := os.ReadDir(directory)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
+func cleanupJournal(root *os.Root) error {
+	if err := root.RemoveAll(transactionDirectory); err != nil {
+		return err
 	}
+	return syncRootDirectory(root)
+}
+
+func removeWriteTemps(directory *os.Root) error {
+	entries, err := readRootDirectory(directory)
 	if err != nil {
 		return err
 	}
-	removed := false
 	for _, entry := range entries {
 		if !strings.HasPrefix(entry.Name(), ".tuck-write-") {
 			continue
 		}
-		path := filepath.Join(directory, entry.Name())
-		info, err := os.Lstat(path)
+		info, err := directory.Lstat(entry.Name())
 		if err != nil {
 			return err
 		}
-		if !info.Mode().IsRegular() {
-			return fmt.Errorf("refusing to remove non-regular temporary file %s", path)
+		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("refusing to remove non-regular temporary file %s", entry.Name())
 		}
-		if err := os.Remove(path); err != nil {
+		if err := directory.Remove(entry.Name()); err != nil {
 			return err
 		}
-		removed = true
 	}
-	if removed {
-		return syncDirectory(directory)
-	}
-	return nil
+	return syncRootDirectory(directory)
 }
 
-func syncDirectory(path string) error {
+func readRootDirectory(root *os.Root) ([]os.DirEntry, error) {
+	directory, err := root.Open(".")
+	if err != nil {
+		return nil, err
+	}
+	defer directory.Close()
+	return directory.ReadDir(-1)
+}
+
+func syncRootDirectory(root *os.Root) error {
 	if runtime.GOOS == "windows" {
 		return nil
 	}
-	dir, err := os.Open(path)
+	directory, err := root.Open(".")
 	if err != nil {
 		return err
 	}
-	defer dir.Close()
-	return dir.Sync()
+	defer directory.Close()
+	return directory.Sync()
+}
+
+func realDirectory(info os.FileInfo) bool {
+	return info != nil && info.IsDir() && info.Mode()&os.ModeSymlink == 0
 }
 
 func safeRelative(path string) (string, error) {
@@ -427,35 +608,6 @@ func validTaskState(state string) bool {
 	default:
 		return false
 	}
-}
-
-func checkSafeParents(root, rel string) error {
-	rootInfo, err := os.Lstat(root)
-	if err != nil {
-		return err
-	}
-	if !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("board root %s must be a real directory", root)
-	}
-	parts := strings.Split(rel, "/")
-	if len(parts) < 2 || parts[0] != "tasks" {
-		return nil
-	}
-	current := root
-	for _, component := range parts[:len(parts)-1] {
-		current = filepath.Join(current, component)
-		info, err := os.Lstat(current)
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("refusing to traverse non-directory or symlink path %s", current)
-		}
-	}
-	return nil
 }
 
 func validateManifest(manifest transactionManifest) error {

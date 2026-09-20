@@ -1,10 +1,12 @@
 package board
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -85,6 +87,39 @@ func TestLoadReportsDuplicateNumbersAndNoncanonicalFilenames(t *testing.T) {
 	}
 	if !duplicateID || !duplicateNumber || !orderIssue || !filenameIssue {
 		t.Fatalf("Load issues = %#v; expected duplicate ID/number, order, and filename issues", b.Issues)
+	}
+}
+
+func TestLoadRejectsTaskSymlink(t *testing.T) {
+	root := t.TempDir()
+	stateDir := filepath.Join(root, "tasks", "backlog")
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	external := filepath.Join(t.TempDir(), "victim.md")
+	record := task.New("wft_00000000000000000000000000", 1, 0, "Secret", task.Backlog, time.Now().UTC(), nil)
+	record.SetPath(task.Backlog, record.Title)
+	record.Body = "external secret body"
+	data, err := record.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(external, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(external, filepath.Join(stateDir, "001-secret.md")); err != nil {
+		if os.IsPermission(err) || errors.Is(err, syscall.Errno(1314)) {
+			t.Skipf("platform does not permit creating symlinks: %v", err)
+		}
+		t.Fatal(err)
+	}
+
+	b := Load(root)
+	if len(b.Tasks) != 0 {
+		t.Fatalf("Load read %d task(s) through a symlink", len(b.Tasks))
+	}
+	if len(b.Issues) == 0 || !strings.Contains(b.Issues[0].Message, "regular file") {
+		t.Fatalf("Load issues = %#v; want an invalid regular-file issue", b.Issues)
 	}
 }
 

@@ -562,7 +562,7 @@ func commandShow(opts options, b *board.Board, stdout io.Writer) error {
 	if opts.json {
 		return writeJSON(stdout, map[string]any{"task": taskRecord(t, true)})
 	}
-	data, err := os.ReadFile(filepath.Join(b.Root, filepath.FromSlash(t.Path)))
+	data, err := b.ReadTaskFile(t.Path)
 	if err != nil {
 		return err
 	}

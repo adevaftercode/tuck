@@ -2,8 +2,10 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -134,6 +136,21 @@ func TestCommitPreparationFailureLeavesBoardFilesUntouched(t *testing.T) {
 	}
 }
 
+func TestCommitDoesNotMutateChanges(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "tasks", "todo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	changes := []Change{{Path: `tasks\todo\001-one.md`, Data: []byte("task")}}
+	originalPath := changes[0].Path
+	if err := Commit(root, changes); err != nil {
+		t.Fatal(err)
+	}
+	if changes[0].Path != originalPath {
+		t.Fatalf("Commit changed caller path to %q; want %q", changes[0].Path, originalPath)
+	}
+}
+
 func TestSafeRelativeRejectsPathsOutsideBoard(t *testing.T) {
 	for _, candidate := range []string{"../outside", "tasks/../board.md", "README.md", "tasks/todo/subdir/001-a.md", `tasks\\todo\\001-a.md`} {
 		if _, err := safeRelative(candidate); err == nil {
@@ -145,6 +162,114 @@ func TestSafeRelativeRejectsPathsOutsideBoard(t *testing.T) {
 			t.Errorf("safeRelative(%q): %v", candidate, err)
 		}
 	}
+}
+
+func TestCommitRejectsSymlinkedTaskParentOrTarget(t *testing.T) {
+	for _, symlinkTarget := range []string{"parent", "task"} {
+		t.Run(symlinkTarget, func(t *testing.T) {
+			root := t.TempDir()
+			outside := t.TempDir()
+			outsideTask := filepath.Join(outside, "001-one.md")
+			if err := os.WriteFile(outsideTask, []byte("outside sentinel"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			statePath := filepath.Join(root, "tasks", "todo")
+			if symlinkTarget == "parent" {
+				if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, statePath); err != nil {
+					skipIfSymlinkUnavailable(t, err)
+				}
+			} else {
+				if err := os.MkdirAll(statePath, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outsideTask, filepath.Join(statePath, "001-one.md")); err != nil {
+					skipIfSymlinkUnavailable(t, err)
+				}
+			}
+			if err := Commit(root, []Change{{Path: "tasks/todo/001-one.md", Data: []byte("replacement")}}); err == nil {
+				t.Fatal("Commit succeeded through a symlink")
+			}
+			assertFileContents(t, outsideTask, "outside sentinel")
+		})
+	}
+}
+
+func TestRecoverRejectsSymlinkedTaskParentOrTarget(t *testing.T) {
+	for _, symlinkTarget := range []string{"parent", "task"} {
+		t.Run(symlinkTarget, func(t *testing.T) {
+			root := t.TempDir()
+			outside := t.TempDir()
+			outsideTask := filepath.Join(outside, "001-one.md")
+			if err := os.WriteFile(outsideTask, []byte("old sentinel"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			statePath := filepath.Join(root, "tasks", "todo")
+			if symlinkTarget == "parent" {
+				if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, statePath); err != nil {
+					skipIfSymlinkUnavailable(t, err)
+				}
+			} else {
+				if err := os.MkdirAll(statePath, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outsideTask, filepath.Join(statePath, "001-one.md")); err != nil {
+					skipIfSymlinkUnavailable(t, err)
+				}
+			}
+			writeInterruptedTaskTransaction(t, root, "tasks/todo/001-one.md", []byte("old sentinel"), []byte("new content"))
+			if err := Recover(root); err == nil {
+				t.Fatal("Recover succeeded through a symlink")
+			}
+			assertFileContents(t, outsideTask, "old sentinel")
+		})
+	}
+}
+
+func writeInterruptedTaskTransaction(t *testing.T, root, target string, before, after []byte) {
+	t.Helper()
+	journal := filepath.Join(root, transactionDirectory)
+	images := filepath.Join(journal, "images")
+	if err := os.MkdirAll(images, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	change := transactionChange{
+		Path: target, BeforeExists: true, BeforeHash: hash(before), BeforeFile: "before-000000",
+		AfterExists: true, AfterHash: hash(after), AfterFile: "after-000000",
+	}
+	for name, data := range map[string][]byte{change.BeforeFile: before, change.AfterFile: after} {
+		if err := os.WriteFile(filepath.Join(images, name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	encoded, err := json.Marshal(transactionManifest{Version: 1, Changes: []transactionChange{change}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(journal, "manifest.json"), encoded, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertFileContents(t *testing.T, path, expected string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != expected {
+		t.Fatalf("file %s = %q, %v; want %q", path, data, err, expected)
+	}
+}
+
+func skipIfSymlinkUnavailable(t *testing.T, err error) {
+	t.Helper()
+	if os.IsPermission(err) || errors.Is(err, syscall.Errno(1314)) {
+		t.Skipf("platform does not permit creating symlinks: %v", err)
+	}
+	t.Fatal(err)
 }
 
 func TestBoardLockSerializesProcesses(t *testing.T) {

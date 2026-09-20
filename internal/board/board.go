@@ -2,6 +2,7 @@ package board
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -37,19 +38,31 @@ type Board struct {
 
 func Load(root string) *Board {
 	b := &Board{Root: root, OriginalPath: make(map[string]string), Dirty: make(map[string]bool)}
-	stateRoot := filepath.Join(root, "tasks")
-	if info, err := os.Lstat(stateRoot); err != nil {
+	boardRoot, err := os.OpenRoot(root)
+	if err != nil {
+		b.Issues = append(b.Issues, Issue{Path: "tasks", Message: err.Error()})
+		return b
+	}
+	defer boardRoot.Close()
+	tasksInfo, err := boardRoot.Lstat("tasks")
+	if err != nil {
 		b.Issues = append(b.Issues, Issue{Path: "tasks", Message: "missing tasks directory; run tuck init"})
 		return b
-	} else if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+	} else if !tasksInfo.IsDir() || tasksInfo.Mode()&os.ModeSymlink != 0 {
 		b.Issues = append(b.Issues, Issue{Path: "tasks", Message: "tasks path is not a real directory"})
 		return b
 	}
+	tasksRoot, err := openCheckedDirectory(boardRoot, "tasks", tasksInfo)
+	if err != nil {
+		b.Issues = append(b.Issues, Issue{Path: "tasks", Message: err.Error()})
+		return b
+	}
+	defer tasksRoot.Close()
 	knownStates := make(map[string]bool, len(task.States))
 	for _, state := range task.States {
 		knownStates[string(state)] = true
 	}
-	rootEntries, err := os.ReadDir(stateRoot)
+	rootEntries, err := readRootDirectory(tasksRoot)
 	if err != nil {
 		b.Issues = append(b.Issues, Issue{Path: "tasks", Message: err.Error()})
 		return b
@@ -60,15 +73,24 @@ func Load(root string) *Board {
 		}
 	}
 	for _, state := range task.States {
-		directory := filepath.Join(stateRoot, string(state))
-		stateInfo, statErr := os.Lstat(directory)
+		stateInfo, statErr := tasksRoot.Lstat(string(state))
 		if statErr == nil && (!stateInfo.IsDir() || stateInfo.Mode()&os.ModeSymlink != 0) {
 			b.Issues = append(b.Issues, Issue{Path: filepath.ToSlash(filepath.Join("tasks", string(state))), Message: "state path must be a real directory"})
 			continue
 		}
-		entries, err := os.ReadDir(directory)
-		if err != nil {
+		if statErr != nil {
 			b.Issues = append(b.Issues, Issue{Path: filepath.ToSlash(filepath.Join("tasks", string(state))), Message: "missing state directory"})
+			continue
+		}
+		stateRoot, err := openCheckedDirectory(tasksRoot, string(state), stateInfo)
+		if err != nil {
+			b.Issues = append(b.Issues, Issue{Path: filepath.ToSlash(filepath.Join("tasks", string(state))), Message: err.Error()})
+			continue
+		}
+		entries, err := readRootDirectory(stateRoot)
+		if err != nil {
+			_ = stateRoot.Close()
+			b.Issues = append(b.Issues, Issue{Path: filepath.ToSlash(filepath.Join("tasks", string(state))), Message: err.Error()})
 			continue
 		}
 		for _, entry := range entries {
@@ -81,13 +103,12 @@ func Load(root string) *Board {
 				b.Issues = append(b.Issues, Issue{Path: rel, Message: "task filename must end in .md"})
 				continue
 			}
-			path := filepath.Join(directory, entry.Name())
-			info, infoErr := entry.Info()
-			if infoErr != nil || !info.Mode().IsRegular() {
+			info, infoErr := stateRoot.Lstat(entry.Name())
+			if infoErr != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 				b.Issues = append(b.Issues, Issue{Path: rel, Message: "task file must be a regular file"})
 				continue
 			}
-			data, err := os.ReadFile(path)
+			data, err := readCheckedRegularFile(stateRoot, entry.Name(), info)
 			if err != nil {
 				b.Issues = append(b.Issues, Issue{Path: rel, Message: err.Error()})
 				continue
@@ -103,9 +124,109 @@ func Load(root string) *Board {
 			b.Tasks = append(b.Tasks, parsed)
 			b.OriginalPath[parsed.ID] = parsed.Path
 		}
+		_ = stateRoot.Close()
 	}
 	b.validateUniqueAndOrder()
 	return b
+}
+
+// ReadTaskFile reads a board task through pinned directory handles and rejects
+// task entries that are symlinks or change between inspection and opening.
+func (b *Board) ReadTaskFile(rel string) ([]byte, error) {
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	if len(parts) != 3 || parts[0] != "tasks" || !knownStateName(parts[1]) || filepath.Ext(parts[2]) != ".md" || parts[2] == "." || parts[2] == ".." {
+		return nil, fmt.Errorf("invalid task path %q", rel)
+	}
+	boardRoot, err := os.OpenRoot(b.Root)
+	if err != nil {
+		return nil, err
+	}
+	defer boardRoot.Close()
+	tasksInfo, err := boardRoot.Lstat("tasks")
+	if err != nil || !tasksInfo.IsDir() || tasksInfo.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("tasks path is not a real directory")
+	}
+	tasksRoot, err := openCheckedDirectory(boardRoot, "tasks", tasksInfo)
+	if err != nil {
+		return nil, err
+	}
+	defer tasksRoot.Close()
+	stateInfo, err := tasksRoot.Lstat(parts[1])
+	if err != nil || !stateInfo.IsDir() || stateInfo.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("task state path is not a real directory")
+	}
+	stateRoot, err := openCheckedDirectory(tasksRoot, parts[1], stateInfo)
+	if err != nil {
+		return nil, err
+	}
+	defer stateRoot.Close()
+	info, err := stateRoot.Lstat(parts[2])
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("task file must be a regular file")
+	}
+	return readCheckedRegularFile(stateRoot, parts[2], info)
+}
+
+func knownStateName(name string) bool {
+	for _, state := range task.States {
+		if name == string(state) {
+			return true
+		}
+	}
+	return false
+}
+
+func openCheckedDirectory(parent *os.Root, name string, expected os.FileInfo) (*os.Root, error) {
+	root, err := parent.OpenRoot(name)
+	if err != nil {
+		return nil, err
+	}
+	file, err := root.Open(".")
+	if err != nil {
+		_ = root.Close()
+		return nil, err
+	}
+	actual, statErr := file.Stat()
+	closeErr := file.Close()
+	if statErr != nil || closeErr != nil || !os.SameFile(expected, actual) {
+		_ = root.Close()
+		if statErr != nil {
+			return nil, statErr
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+		return nil, fmt.Errorf("directory changed while opening")
+	}
+	return root, nil
+}
+
+func readRootDirectory(root *os.Root) ([]os.DirEntry, error) {
+	directory, err := root.Open(".")
+	if err != nil {
+		return nil, err
+	}
+	defer directory.Close()
+	return directory.ReadDir(-1)
+}
+
+func readCheckedRegularFile(root *os.Root, name string, expected os.FileInfo) ([]byte, error) {
+	file, err := root.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	actual, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !actual.Mode().IsRegular() || !os.SameFile(expected, actual) {
+		return nil, fmt.Errorf("task file changed while opening")
+	}
+	return io.ReadAll(file)
 }
 
 func (b *Board) validateUniqueAndOrder() {
