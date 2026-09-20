@@ -162,7 +162,7 @@ func TestShowDoesNotEmitTaskSymlinkContents(t *testing.T) {
 	root := t.TempDir()
 	requireSuccess(t, root, "init")
 	external := filepath.Join(t.TempDir(), "victim.md")
-	record := task.New("wft_00000000000000000000000000", 1, 0, "Secret", task.Backlog, time.Now().UTC(), nil)
+	record := task.New("tuck_00000000000000000000000000", 1, 0, "Secret", task.Backlog, time.Now().UTC(), nil)
 	record.SetPath(task.Backlog, record.Title)
 	record.Body = "DO_NOT_DISCLOSE_EXTERNAL_CONTENT"
 	data, err := record.Marshal()

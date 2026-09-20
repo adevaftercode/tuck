@@ -3,7 +3,7 @@ exec tuck$exe init
 exec tuck$exe add 'Stable handle' --state todo --json
 json
 capture-task-id
-stdout '"id": "wft_[0-7][0-9A-HJKMNP-TV-Z]{25}"'
+stdout '"id": "tuck_[0-7][0-9A-HJKMNP-TV-Z]{25}"'
 
 exec tuck$exe show $TASK_ID --json
 json
@@ -15,5 +15,5 @@ json
 stdout '"title": "Addressed by ID"'
 exists tasks/todo/001-addressed-by-id.md
 
-! exec tuck$exe show 'wft_invalid'
+! exec tuck$exe show 'tuck_invalid'
 stderr 'use its number or ID'

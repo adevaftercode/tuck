@@ -52,7 +52,7 @@ Tasks live in `tasks/backlog/`, `tasks/todo/`, `tasks/doing/`, and
 
 ```md
 ---
-id: wft_01K5Z4KJ6M2V7D9X3R8T5Q1P0A
+id: tuck_01K5Z4KJ6M2V7D9X3R8T5Q1P0A
 number: 1
 order: 1
 created_at: "2026-09-19T12:30:00Z"

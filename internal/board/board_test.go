@@ -58,16 +58,16 @@ func TestLoadReportsDuplicateNumbersAndNoncanonicalFilenames(t *testing.T) {
 		}
 	}
 	created := time.Date(2026, 9, 19, 12, 0, 0, 0, time.UTC)
-	first := task.New("wft_00000000000000000000000000", 1, 1, "First", task.Backlog, created, nil)
+	first := task.New("tuck_00000000000000000000000000", 1, 1, "First", task.Backlog, created, nil)
 	first.SetPath(task.Backlog, first.Title)
 	writeTask(t, root, first.Path, first)
-	second := task.New("wft_00000000000000000000000001", 1, 1, "Second", task.Todo, created, nil)
+	second := task.New("tuck_00000000000000000000000001", 1, 1, "Second", task.Todo, created, nil)
 	second.SetPath(task.Todo, second.Title)
 	writeTask(t, root, second.Path, second)
 	third := task.New(first.ID, 2, 3, "Third", task.Todo, created, nil)
 	third.SetPath(task.Todo, third.Title)
 	writeTask(t, root, third.Path, third)
-	ten := task.New("wft_00000000000000000000000002", 10, 1, "Ten", task.Done, created, nil)
+	ten := task.New("tuck_00000000000000000000000002", 10, 1, "Ten", task.Done, created, nil)
 	ten.SetPath(task.Done, ten.Title)
 	data, err := ten.Marshal()
 	if err != nil {
@@ -97,7 +97,7 @@ func TestLoadRejectsTaskSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	external := filepath.Join(t.TempDir(), "victim.md")
-	record := task.New("wft_00000000000000000000000000", 1, 0, "Secret", task.Backlog, time.Now().UTC(), nil)
+	record := task.New("tuck_00000000000000000000000000", 1, 0, "Secret", task.Backlog, time.Now().UTC(), nil)
 	record.SetPath(task.Backlog, record.Title)
 	record.Body = "external secret body"
 	data, err := record.Marshal()

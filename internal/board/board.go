@@ -331,7 +331,7 @@ func (b *Board) validateUniqueAndOrder() {
 	orders := make(map[task.State][]*task.Task)
 	for _, t := range b.Tasks {
 		if !idPattern.MatchString(t.ID) {
-			b.Issues = append(b.Issues, Issue{Path: t.Path, Message: "id must use the wft_ ULID format"})
+			b.Issues = append(b.Issues, Issue{Path: t.Path, Message: "id must use the tuck_ ULID format"})
 		}
 		if previous, ok := ids[t.ID]; ok {
 			b.Issues = append(b.Issues, Issue{Path: t.Path, Message: fmt.Sprintf("duplicate task id also used by %s", previous)})
@@ -363,7 +363,7 @@ func (b *Board) validateUniqueAndOrder() {
 	}
 }
 
-var idPattern = regexp.MustCompile(`^wft_[0-7][0-9A-HJKMNP-TV-Z]{25}$`)
+var idPattern = regexp.MustCompile(`^tuck_[0-7][0-9A-HJKMNP-TV-Z]{25}$`)
 
 func validateFilename(name string, t *task.Task) error {
 	if filepath.Ext(name) != ".md" {

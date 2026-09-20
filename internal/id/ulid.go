@@ -49,5 +49,5 @@ func New(now time.Time) (string, error) {
 			accumulator &= (1 << bits) - 1
 		}
 	}
-	return "wft_" + string(encoded[:]), nil
+	return "tuck_" + string(encoded[:]), nil
 }

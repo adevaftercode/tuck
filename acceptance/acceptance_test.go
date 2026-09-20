@@ -147,7 +147,7 @@ func captureTaskID(ts *testscript.TestScript, _ bool, args []string) {
 	if err := json.Unmarshal([]byte(ts.ReadFile("stdout")), &output); err != nil {
 		ts.Fatalf("cannot read task ID from stdout JSON: %v", err)
 	}
-	if len(output.Task.ID) != 30 || !strings.HasPrefix(output.Task.ID, "wft_") {
+	if len(output.Task.ID) != 31 || !strings.HasPrefix(output.Task.ID, "tuck_") {
 		ts.Fatalf("stdout task ID %q does not have the Tuck ID shape", output.Task.ID)
 	}
 	ts.Setenv("TASK_ID", output.Task.ID)

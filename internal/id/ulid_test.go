@@ -11,7 +11,7 @@ func TestNewProducesPrefixedULID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !regexp.MustCompile(`^wft_[0-7][0-9A-HJKMNP-TV-Z]{25}$`).MatchString(got) {
+	if !regexp.MustCompile(`^tuck_[0-7][0-9A-HJKMNP-TV-Z]{25}$`).MatchString(got) {
 		t.Fatalf("invalid ULID %q", got)
 	}
 }

@@ -15,7 +15,7 @@ func TestMetadataFrontMatterRoundTrip(t *testing.T) {
 		"optional": nil,
 		"labels":   []any{"mobile", "images", int64(2)},
 	}
-	task := New("wft_01K5Z4KJ6M2V7D9X3R8T5Q1P0A", 7, 2, "Image management", Todo, now, metadata)
+	task := New("tuck_01K5Z4KJ6M2V7D9X3R8T5Q1P0A", 7, 2, "Image management", Todo, now, metadata)
 	task.SetPath(Todo, task.Title)
 	encoded, err := task.Marshal()
 	if err != nil {
