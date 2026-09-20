@@ -256,8 +256,20 @@ func execute(command string, opts options, stdout, stderr io.Writer) error {
 		return err
 	}
 	if command == "init" {
-		if err := os.MkdirAll(root.Path, 0o755); err != nil {
+		if err := ensureRootDirectory(root.Path); err != nil {
 			return err
+		}
+		boardRoot, err := os.OpenRoot(root.Path)
+		if err != nil {
+			return err
+		}
+		ensureErr := ensureDirectory(boardRoot, "tasks")
+		closeErr := boardRoot.Close()
+		if ensureErr != nil {
+			return ensureErr
+		}
+		if closeErr != nil {
+			return closeErr
 		}
 	}
 	lock, err := store.Acquire(root)
@@ -275,11 +287,11 @@ func execute(command string, opts options, stdout, stderr io.Writer) error {
 	}
 	boardState := board.Load(root.Path)
 	if command == "check" {
-		pending, err := store.HasPendingRecovery(root.Path)
+		pendingPath, pending, err := store.PendingRecoveryPath(root.Path)
 		if err != nil {
 			return err
 		}
-		return checkBoard(boardState, pending, stdout, opts.json)
+		return checkBoard(boardState, pendingPath, stdout, opts.json)
 	}
 	if command == "sync" {
 		return syncBoard(boardState, stdout, stderr, opts.json)
@@ -291,11 +303,16 @@ func execute(command string, opts options, stdout, stderr io.Writer) error {
 }
 
 func initialize(root string, stdout io.Writer, jsonOutput bool) error {
-	if err := ensureDirectory(filepath.Join(root, "tasks")); err != nil {
+	boardRoot, err := os.OpenRoot(root)
+	if err != nil {
+		return err
+	}
+	defer boardRoot.Close()
+	if err := ensureDirectory(boardRoot, "tasks"); err != nil {
 		return err
 	}
 	for _, state := range task.States {
-		if err := ensureDirectory(filepath.Join(root, "tasks", string(state))); err != nil {
+		if err := ensureDirectory(boardRoot, filepath.Join("tasks", string(state))); err != nil {
 			return err
 		}
 	}
@@ -309,7 +326,11 @@ func initialize(root string, stdout io.Writer, jsonOutput bool) error {
 	}
 	projectionUpdated := false
 	if stale {
-		if _, err := os.Stat(filepath.Join(root, "board.md")); err == nil {
+		exists, err := board.ProjectionExists(root)
+		if err != nil {
+			return err
+		}
+		if exists {
 			if jsonOutput {
 				return writeJSON(stdout, map[string]any{"initialized": true, "root": root, "projection_updated": false})
 			}
@@ -328,13 +349,30 @@ func initialize(root string, stdout io.Writer, jsonOutput bool) error {
 	return nil
 }
 
-func ensureDirectory(path string) error {
+func ensureRootDirectory(path string) error {
 	info, err := os.Lstat(path)
-	if os.IsNotExist(err) {
-		if err := os.Mkdir(path, 0o755); err != nil && !os.IsExist(err) {
+	if errors.Is(err, os.ErrNotExist) {
+		if err := os.Mkdir(path, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
 			return err
 		}
 		info, err = os.Lstat(path)
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("root must be a real directory")
+	}
+	return nil
+}
+
+func ensureDirectory(root *os.Root, path string) error {
+	info, err := root.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		if err := root.Mkdir(path, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
+			return err
+		}
+		info, err = root.Lstat(path)
 	}
 	if err != nil {
 		return err
@@ -345,10 +383,10 @@ func ensureDirectory(path string) error {
 	return nil
 }
 
-func checkBoard(b *board.Board, pendingRecovery bool, stdout io.Writer, jsonOutput bool) error {
+func checkBoard(b *board.Board, pendingRecoveryPath string, stdout io.Writer, jsonOutput bool) error {
 	issues := b.CheckIssues()
-	if pendingRecovery {
-		issues = append(issues, board.Issue{Path: ".tuck-txn", Message: "an interrupted operation needs recovery; run a Tuck command other than check"})
+	if pendingRecoveryPath != "" {
+		issues = append(issues, board.Issue{Path: pendingRecoveryPath, Message: "an interrupted operation needs recovery; run a Tuck command other than check"})
 	}
 	projectionIssue, stale, err := b.ProjectionIssue()
 	if err != nil {

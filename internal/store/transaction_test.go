@@ -29,7 +29,7 @@ func TestRecoverRollsForwardAnInterruptedTransaction(t *testing.T) {
 	if err := os.WriteFile(staleTemp, []byte("partial temp"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	journal := filepath.Join(root, transactionDirectory)
+	journal := transactionJournalPath(t, root)
 	images := filepath.Join(journal, "images")
 	if err := os.MkdirAll(images, 0o700); err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestRecoverDoesNotOverwriteAnExternalConflict(t *testing.T) {
 	if err := os.WriteFile(target, []byte("external edit"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	journal := filepath.Join(root, transactionDirectory)
+	journal := transactionJournalPath(t, root)
 	images := filepath.Join(journal, "images")
 	if err := os.MkdirAll(images, 0o700); err != nil {
 		t.Fatal(err)
@@ -131,7 +131,7 @@ func TestCommitPreparationFailureLeavesBoardFilesUntouched(t *testing.T) {
 	if readErr != nil || string(got) != "before task" {
 		t.Fatalf("staged failure changed task file: %q, %v", got, readErr)
 	}
-	if _, statErr := os.Stat(filepath.Join(root, transactionDirectory)); !os.IsNotExist(statErr) {
+	if _, statErr := os.Stat(transactionJournalPath(t, root)); !os.IsNotExist(statErr) {
 		t.Fatalf("failed staging should remove its journal, stat error: %v", statErr)
 	}
 }
@@ -233,7 +233,7 @@ func TestRecoverRejectsSymlinkedTaskParentOrTarget(t *testing.T) {
 
 func writeInterruptedTaskTransaction(t *testing.T, root, target string, before, after []byte) {
 	t.Helper()
-	journal := filepath.Join(root, transactionDirectory)
+	journal := transactionJournalPath(t, root)
 	images := filepath.Join(journal, "images")
 	if err := os.MkdirAll(images, 0o700); err != nil {
 		t.Fatal(err)
@@ -264,6 +264,15 @@ func assertFileContents(t *testing.T, path, expected string) {
 	}
 }
 
+func transactionJournalPath(t *testing.T, root string) string {
+	t.Helper()
+	journal := filepath.Join(root, "tasks", lockDirectory, transactionDirectory)
+	if err := os.MkdirAll(filepath.Dir(journal), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return journal
+}
+
 func skipIfSymlinkUnavailable(t *testing.T, err error) {
 	t.Helper()
 	if os.IsPermission(err) || errors.Is(err, syscall.Errno(1314)) {
@@ -274,6 +283,9 @@ func skipIfSymlinkUnavailable(t *testing.T, err error) {
 
 func TestBoardLockSerializesProcesses(t *testing.T) {
 	root := Root{Path: t.TempDir()}
+	if err := os.Mkdir(filepath.Join(root.Path, "tasks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	first, err := Acquire(root)
 	if err != nil {
 		t.Fatal(err)

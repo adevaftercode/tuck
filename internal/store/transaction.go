@@ -16,7 +16,10 @@ import (
 	"strings"
 )
 
-const transactionDirectory = ".tuck-txn"
+const (
+	transactionDirectory       = "txn"
+	legacyTransactionDirectory = ".tuck-txn"
+)
 
 type Change struct {
 	Path   string
@@ -47,7 +50,22 @@ func Recover(root string) error {
 	}
 	defer boardRoot.Close()
 
-	journalInfo, err := boardRoot.Lstat(transactionDirectory)
+	if err := recoverJournalAt(boardRoot, boardRoot, legacyTransactionDirectory); err != nil {
+		return err
+	}
+	metadataRoot, err := openTransactionParent(boardRoot, false)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer metadataRoot.Close()
+	return recoverJournalAt(boardRoot, metadataRoot, transactionDirectory)
+}
+
+func recoverJournalAt(boardRoot, parent *os.Root, name string) error {
+	journalInfo, err := parent.Lstat(name)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
@@ -55,13 +73,13 @@ func Recover(root string) error {
 		return err
 	}
 	if !realDirectory(journalInfo) {
-		return fmt.Errorf("transaction recovery conflict: %s is not a real directory", transactionDirectory)
+		return fmt.Errorf("transaction recovery conflict: %s is not a real directory", name)
 	}
-	journalRoot, err := openCheckedDirectory(boardRoot, transactionDirectory, journalInfo)
+	journalRoot, err := openCheckedDirectory(parent, name, journalInfo)
 	if err != nil {
 		return fmt.Errorf("transaction recovery conflict: %w", err)
 	}
-	cleanup, recoverErr := recoverJournal(boardRoot, journalRoot)
+	cleanup, recoverErr := recoverJournal(boardRoot, journalRoot, name)
 	closeErr := journalRoot.Close()
 	if recoverErr != nil {
 		return recoverErr
@@ -70,12 +88,12 @@ func Recover(root string) error {
 		return closeErr
 	}
 	if cleanup {
-		return cleanupJournal(boardRoot)
+		return cleanupJournal(parent, name)
 	}
 	return nil
 }
 
-func recoverJournal(boardRoot, journalRoot *os.Root) (bool, error) {
+func recoverJournal(boardRoot, journalRoot *os.Root, journalName string) (bool, error) {
 	encoded, manifestExists, _, err := readRegular(journalRoot, "manifest.json")
 	if errors.Is(err, fs.ErrNotExist) || err == nil && !manifestExists {
 		// No board file is changed until the manifest is installed.
@@ -92,7 +110,7 @@ func recoverJournal(boardRoot, journalRoot *os.Root) (bool, error) {
 	}
 	var manifest transactionManifest
 	if err := json.Unmarshal(encoded, &manifest); err != nil || manifest.Version != 1 {
-		return false, fmt.Errorf("transaction recovery conflict: invalid manifest in %s", transactionDirectory)
+		return false, fmt.Errorf("transaction recovery conflict: invalid manifest in %s", journalName)
 	}
 	if err := validateManifest(manifest); err != nil {
 		return false, fmt.Errorf("transaction recovery conflict: %w", err)
@@ -148,19 +166,39 @@ func recoverJournal(boardRoot, journalRoot *os.Root) (bool, error) {
 // HasPendingRecovery lets check report an interrupted transaction without
 // changing the board. All other commands recover while holding the board lock.
 func HasPendingRecovery(root string) (bool, error) {
+	_, pending, err := PendingRecoveryPath(root)
+	return pending, err
+}
+
+// PendingRecoveryPath reports the path of an interrupted transaction without
+// changing the board.
+func PendingRecoveryPath(root string) (string, bool, error) {
 	boardRoot, err := os.OpenRoot(root)
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
 	defer boardRoot.Close()
-	_, err = boardRoot.Lstat(transactionDirectory)
+	if _, err := boardRoot.Lstat(legacyTransactionDirectory); err == nil {
+		return legacyTransactionDirectory, true, nil
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return "", false, err
+	}
+	metadataRoot, err := openTransactionParent(boardRoot, false)
 	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
+		return "", false, nil
 	}
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
-	return true, nil
+	defer metadataRoot.Close()
+	_, err = metadataRoot.Lstat(transactionDirectory)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return filepath.ToSlash(filepath.Join("tasks", lockDirectory, transactionDirectory)), true, nil
 }
 
 func Commit(root string, changes []Change) error {
@@ -188,29 +226,34 @@ func Commit(root string, changes []Change) error {
 		return err
 	}
 	defer boardRoot.Close()
-	if err := prepareAndApply(boardRoot, changes); err != nil {
+	metadataRoot, err := openTransactionParent(boardRoot, true)
+	if err != nil {
+		return err
+	}
+	defer metadataRoot.Close()
+	if err := prepareAndApply(boardRoot, metadataRoot, changes); err != nil {
 		return err
 	}
 	return Recover(root)
 }
 
-func prepareAndApply(boardRoot *os.Root, changes []Change) (retErr error) {
-	if err := boardRoot.Mkdir(transactionDirectory, 0o700); err != nil {
+func prepareAndApply(boardRoot, metadataRoot *os.Root, changes []Change) (retErr error) {
+	if err := metadataRoot.Mkdir(transactionDirectory, 0o700); err != nil {
 		return fmt.Errorf("create transaction journal: %w", err)
 	}
 	defer func() {
 		if retErr != nil {
-			if err := cleanupJournal(boardRoot); err != nil {
+			if err := cleanupJournal(metadataRoot, transactionDirectory); err != nil {
 				retErr = errors.Join(retErr, err)
 			}
 		}
 	}()
 
-	journalInfo, err := boardRoot.Lstat(transactionDirectory)
+	journalInfo, err := metadataRoot.Lstat(transactionDirectory)
 	if err != nil || !realDirectory(journalInfo) {
 		return fmt.Errorf("create transaction journal: journal path is not a real directory")
 	}
-	journalRoot, err := openCheckedDirectory(boardRoot, transactionDirectory, journalInfo)
+	journalRoot, err := openCheckedDirectory(metadataRoot, transactionDirectory, journalInfo)
 	if err != nil {
 		return fmt.Errorf("create transaction journal: %w", err)
 	}
@@ -275,7 +318,7 @@ func prepareAndApply(boardRoot *os.Root, changes []Change) (retErr error) {
 	if err := syncRootDirectory(journalRoot); err != nil {
 		return err
 	}
-	return syncRootDirectory(boardRoot)
+	return syncRootDirectory(metadataRoot)
 }
 
 func applyJournalChange(boardRoot, imagesRoot *os.Root, change transactionChange) error {
@@ -361,6 +404,15 @@ func applyJournalChange(boardRoot, imagesRoot *os.Root, change transactionChange
 	return writeAtomic(parent, name, content, mode)
 }
 
+func openTransactionParent(boardRoot *os.Root, create bool) (*os.Root, error) {
+	tasksRoot, err := openOrCreateDirectory(boardRoot, "tasks", create)
+	if err != nil {
+		return nil, err
+	}
+	defer tasksRoot.Close()
+	return openOrCreateDirectoryMode(tasksRoot, lockDirectory, create, 0o700)
+}
+
 func openTarget(boardRoot *os.Root, rel string, createParents bool) (*os.Root, string, func(), error) {
 	if rel == "board.md" {
 		return boardRoot, "board.md", func() {}, nil
@@ -385,9 +437,13 @@ func openTarget(boardRoot *os.Root, rel string, createParents bool) (*os.Root, s
 }
 
 func openOrCreateDirectory(parent *os.Root, name string, create bool) (*os.Root, error) {
+	return openOrCreateDirectoryMode(parent, name, create, 0o755)
+}
+
+func openOrCreateDirectoryMode(parent *os.Root, name string, create bool, mode fs.FileMode) (*os.Root, error) {
 	info, err := parent.Lstat(name)
 	if errors.Is(err, fs.ErrNotExist) && create {
-		if err := parent.Mkdir(name, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+		if err := parent.Mkdir(name, mode); err != nil && !errors.Is(err, fs.ErrExist) {
 			return nil, err
 		}
 		info, err = parent.Lstat(name)
@@ -449,9 +505,19 @@ func readRegular(root *os.Root, name string) ([]byte, bool, fs.FileMode, error) 
 	if !opened.Mode().IsRegular() || !os.SameFile(info, opened) {
 		return nil, false, 0, fmt.Errorf("refusing to operate on changed or non-regular file %s", name)
 	}
+	singleLink, err := hasSingleLink(file)
+	if err != nil {
+		return nil, false, 0, err
+	}
+	if !singleLink {
+		return nil, false, 0, fmt.Errorf("refusing to operate on hard-linked file %s", name)
+	}
 	data, err := io.ReadAll(file)
 	return data, true, opened.Mode().Perm(), err
 }
+
+// FileHasSingleLink reports whether a file has only one filesystem link.
+func FileHasSingleLink(file *os.File) (bool, error) { return hasSingleLink(file) }
 
 func matches(data []byte, exists bool, expected string, expectedExists bool) bool {
 	if exists != expectedExists {
@@ -526,8 +592,8 @@ func createTemp(root *os.Root, prefix string, mode fs.FileMode) (string, *os.Fil
 	return "", nil, fmt.Errorf("unable to create temporary file")
 }
 
-func cleanupJournal(root *os.Root) error {
-	if err := root.RemoveAll(transactionDirectory); err != nil {
+func cleanupJournal(root *os.Root, name string) error {
+	if err := root.RemoveAll(name); err != nil {
 		return err
 	}
 	return syncRootDirectory(root)

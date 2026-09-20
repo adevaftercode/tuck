@@ -252,7 +252,7 @@ func TestConcurrentWritersKeepEveryTask(t *testing.T) {
 func TestCheckReportsPendingTransactionWithoutRecoveringIt(t *testing.T) {
 	root := t.TempDir()
 	requireSuccess(t, root, "init")
-	journal := filepath.Join(root, ".tuck-txn")
+	journal := filepath.Join(root, "tasks", ".tuck", "txn")
 	if err := os.Mkdir(journal, 0o700); err != nil {
 		t.Fatal(err)
 	}

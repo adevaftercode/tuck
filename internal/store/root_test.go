@@ -43,14 +43,11 @@ func TestResolveUsesPrimaryGitWorktree(t *testing.T) {
 	if resolved.Path != mainCanonical {
 		t.Fatalf("resolved path = %q, want primary worktree %q", resolved.Path, mainCanonical)
 	}
-	if resolved.GitCommon == "" || filepath.Base(resolved.GitCommon) != ".git" {
-		t.Fatalf("git common directory was not resolved: %#v", resolved)
-	}
 	explicit, err := Resolve(linked, linked)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if explicit.Path != linked || explicit.GitCommon != resolved.GitCommon {
-		t.Fatalf("explicit board selection did not keep its path and shared lock directory: %#v", explicit)
+	if explicit.Path != linked {
+		t.Fatalf("explicit board selection did not keep its path: %#v", explicit)
 	}
 }

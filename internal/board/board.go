@@ -68,8 +68,19 @@ func Load(root string) *Board {
 		return b
 	}
 	for _, entry := range rootEntries {
-		if !knownStates[entry.Name()] || !entry.IsDir() {
-			b.Issues = append(b.Issues, Issue{Path: filepath.ToSlash(filepath.Join("tasks", entry.Name())), Message: "unexpected entry in tasks directory"})
+		switch entry.Name() {
+		case ".gitignore":
+			if err := validateRegularEntry(tasksRoot, entry.Name()); err != nil {
+				b.Issues = append(b.Issues, Issue{Path: "tasks/.gitignore", Message: err.Error()})
+			}
+		case ".tuck":
+			if err := validateLockDirectory(tasksRoot); err != nil {
+				b.Issues = append(b.Issues, Issue{Path: "tasks/.tuck", Message: err.Error()})
+			}
+		default:
+			if !knownStates[entry.Name()] || !entry.IsDir() {
+				b.Issues = append(b.Issues, Issue{Path: filepath.ToSlash(filepath.Join("tasks", entry.Name())), Message: "unexpected entry in tasks directory"})
+			}
 		}
 	}
 	for _, state := range task.States {
@@ -226,7 +237,92 @@ func readCheckedRegularFile(root *os.Root, name string, expected os.FileInfo) ([
 	if !actual.Mode().IsRegular() || !os.SameFile(expected, actual) {
 		return nil, fmt.Errorf("task file changed while opening")
 	}
+	singleLink, err := store.FileHasSingleLink(file)
+	if err != nil {
+		return nil, err
+	}
+	if !singleLink {
+		return nil, fmt.Errorf("regular files must not be hard links")
+	}
 	return io.ReadAll(file)
+}
+
+func validateRegularEntry(root *os.Root, name string) error {
+	info, err := root.Lstat(name)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s must be a regular file", name)
+	}
+	file, err := root.Open(name)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	actual, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if !actual.Mode().IsRegular() || !os.SameFile(info, actual) {
+		return fmt.Errorf("%s changed while opening", name)
+	}
+	singleLink, err := store.FileHasSingleLink(file)
+	if err != nil {
+		return err
+	}
+	if !singleLink {
+		return fmt.Errorf("%s must not be a hard link", name)
+	}
+	return nil
+}
+
+func validateLockDirectory(tasksRoot *os.Root) error {
+	info, err := tasksRoot.Lstat(".tuck")
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf(".tuck must be a real directory")
+	}
+	lockRoot, err := openCheckedDirectory(tasksRoot, ".tuck", info)
+	if err != nil {
+		return err
+	}
+	defer lockRoot.Close()
+	entries, err := readRootDirectory(lockRoot)
+	if err != nil {
+		return err
+	}
+	lockFound := false
+	for _, entry := range entries {
+		switch entry.Name() {
+		case "lock":
+			lockFound = true
+			if err := validateRegularEntry(lockRoot, entry.Name()); err != nil {
+				return err
+			}
+		case "txn":
+			txnInfo, err := lockRoot.Lstat(entry.Name())
+			if err != nil {
+				return err
+			}
+			if !realDirectory(txnInfo) {
+				return fmt.Errorf("txn must be a real directory")
+			}
+			txnRoot, err := openCheckedDirectory(lockRoot, entry.Name(), txnInfo)
+			if err != nil {
+				return err
+			}
+			_ = txnRoot.Close()
+		default:
+			return fmt.Errorf("unexpected entry %q in lock directory", entry.Name())
+		}
+	}
+	if !lockFound {
+		return fmt.Errorf("lock file is missing")
+	}
+	return nil
 }
 
 func (b *Board) validateUniqueAndOrder() {
@@ -413,14 +509,45 @@ func oneLine(value string) string {
 }
 
 func IsProjectionStale(root string, projection []byte) (bool, error) {
-	current, err := os.ReadFile(filepath.Join(root, "board.md"))
+	boardRoot, err := os.OpenRoot(root)
+	if err != nil {
+		return false, err
+	}
+	defer boardRoot.Close()
+	info, err := boardRoot.Lstat("board.md")
 	if err != nil {
 		if os.IsNotExist(err) {
 			return true, nil
 		}
 		return false, err
 	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return false, fmt.Errorf("board.md must be a regular file")
+	}
+	current, err := readCheckedRegularFile(boardRoot, "board.md", info)
+	if err != nil {
+		return false, err
+	}
 	return string(current) != string(projection), nil
+}
+
+func ProjectionExists(root string) (bool, error) {
+	boardRoot, err := os.OpenRoot(root)
+	if err != nil {
+		return false, err
+	}
+	defer boardRoot.Close()
+	info, err := boardRoot.Lstat("board.md")
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return false, fmt.Errorf("board.md must be a regular file")
+	}
+	return true, nil
 }
 
 func Now() time.Time { return time.Now().UTC() }

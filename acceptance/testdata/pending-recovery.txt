@@ -1,16 +1,16 @@
 # check reports a pending journal without changing it.
 exec tuck$exe init
-mkdir .tuck-txn
-cp unfinished.txt .tuck-txn/unfinished
+mkdir tasks/.tuck/txn
+cp unfinished.txt tasks/.tuck/txn/unfinished
 
 exitcode 1 check --json
 json
 stdout '"ok": false'
-stdout '"path": ".tuck-txn"'
+stdout '"path": "tasks/.tuck/txn"'
 stdout 'interrupted operation needs recovery'
 stderr 'found 1 board issue'
-exists .tuck-txn/unfinished
-cmp .tuck-txn/unfinished unfinished.txt
+exists tasks/.tuck/txn/unfinished
+cmp tasks/.tuck/txn/unfinished unfinished.txt
 
 -- unfinished.txt --
 unfinished journal marker
