@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +38,9 @@ type options struct {
 }
 
 func Run(args []string, stdout, stderr io.Writer) int {
+	stdout = terminalSafeWriter{destination: stdout}
+	stderr = terminalSafeWriter{destination: stderr}
+
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
 		_, _ = io.WriteString(stdout, rootHelp)
 		return 0
@@ -417,10 +421,22 @@ func taskRecord(t *task.Task, includeBody bool) taskJSON {
 }
 
 func writeJSON(out io.Writer, value any) error {
-	encoder := json.NewEncoder(out)
+	var encoded bytes.Buffer
+	encoder := json.NewEncoder(&encoded)
 	encoder.SetEscapeHTML(false)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(value)
+	if err := encoder.Encode(value); err != nil {
+		return err
+	}
+	data := escapeJSONTerminalControls(encoded.Bytes())
+	n, err := out.Write(data)
+	if err != nil {
+		return err
+	}
+	if n != len(data) {
+		return io.ErrShortWrite
+	}
+	return nil
 }
 
 func runBoardCommand(command string, opts options, b *board.Board, stdout, stderr io.Writer) error {
