@@ -307,7 +307,7 @@ func validateLockDirectory(tasksRoot *os.Root) error {
 			if err != nil {
 				return err
 			}
-			if !realDirectory(txnInfo) {
+			if txnInfo == nil || !txnInfo.IsDir() || txnInfo.Mode()&os.ModeSymlink != 0 {
 				return fmt.Errorf("txn must be a real directory")
 			}
 			txnRoot, err := openCheckedDirectory(lockRoot, entry.Name(), txnInfo)

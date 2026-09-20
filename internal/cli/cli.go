@@ -287,7 +287,7 @@ func execute(command string, opts options, stdout, stderr io.Writer) error {
 	}
 	boardState := board.Load(root.Path)
 	if command == "check" {
-		pendingPath, pending, err := store.PendingRecoveryPath(root.Path)
+		pendingPath, _, err := store.PendingRecoveryPath(root.Path)
 		if err != nil {
 			return err
 		}
